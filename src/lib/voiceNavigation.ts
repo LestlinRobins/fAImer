@@ -698,7 +698,7 @@ export const FEATURE_KB: Array<{
   },
 ];
 
-const MODEL_NAME = "gemini-2.0-flash";
+const MODEL_NAME = "gemma-3n-e2b-it";
 
 function buildPrompt(userQuery: string, language?: string) {
   const kbJson = JSON.stringify(FEATURE_KB, null, 2);
