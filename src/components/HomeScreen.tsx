@@ -939,7 +939,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
 
       <div className="p-4 space-y-6">
         {/* Crop Todo List */}
-        <CropTodoList language={language} />
+        <CropTodoList language={currentLanguage} />
 
         {/* Quick Actions */}
         <div>
