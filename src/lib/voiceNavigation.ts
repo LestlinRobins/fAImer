@@ -664,16 +664,48 @@ English:
 "How much did I spend on fertilizer this month?" → INTENT: Check expenses → targetId: "expense"  
 "Are the prices good for selling rice today?" → INTENT: Check market prices → targetId: "market"
 "It's been raining a lot, will it continue?" → INTENT: Weather forecast → targetId: "weather"
+"Show me my profile" → INTENT: View profile → targetId: "profile"
+"Take me to home" → INTENT: Go home → targetId: "home"
+"Open farming twin" → INTENT: Farming twin → targetId: "twin"
 
 Malayalam:
 "എന്റെ പയറിന് വെള്ളക്കാശു വന്നിട്ടുണ്ട്" → INTENT: Plant disease → targetId: "diagnose"
 "ഇന്ന് വീട്ടിൽ പച്ചക്കറി വിറ്റാൽ നല്ല വിലകിട്ടുമോ?" → INTENT: Market prices → targetId: "market"
 "ഇന്നത്തെ കാലാവസ്ഥ എങ്ങനെയാണ്?" → INTENT: Weather → targetId: "weather"
+"പ്രൊഫൈൽ" → INTENT: Profile → targetId: "profile"
+"പ്രോഫൈൽ കാണിക്കുക" → INTENT: Profile → targetId: "profile"
+"എന്റെ പ്രൊഫൈൽ" → INTENT: Profile → targetId: "profile"
+"ഹോം" → INTENT: Home → targetId: "home"
+"ഹോം പേജ്" → INTENT: Home → targetId: "home"
+"വീട്ടിലേക്ക് പോകുക" → INTENT: Home → targetId: "home"
+"കാർഷിക ട്വിൻ" → INTENT: Farming twin → targetId: "twin"
+"ട്വിൻ" → INTENT: Farming twin → targetId: "twin"
+"വിള പരിശോധന" → INTENT: Crop diagnosis → targetId: "diagnose"
+"രോഗനിർണയം" → INTENT: Crop diagnosis → targetId: "diagnose"
+"വിപണി" → INTENT: Market → targetId: "market"
+"വിപണി വില" → INTENT: Market → targetId: "market"
+"വാർത്തകൾ" → INTENT: News → targetId: "news"
+"ന്യൂസ്" → INTENT: News → targetId: "news"
+"ഫോറം" → INTENT: Forum → targetId: "forum"
+"കർഷക ഫോറം" → INTENT: Forum → targetId: "forum"
+"അലർട്ട്" → INTENT: Alerts → targetId: "notifications"
+"അലർട്ടുകൾ" → INTENT: Alerts → targetId: "notifications"
+"മുന്നറിയിപ്പുകൾ" → INTENT: Alerts → targetId: "notifications"
+"ചെലവ്" → INTENT: Expenses → targetId: "expense"
+"ചിലവ് ട്രാക്കർ" → INTENT: Expenses → targetId: "expense"
+"പണം ചിലവ്" → INTENT: Expenses → targetId: "expense"
+"വിജ്ഞാന കേന്ദ്രം" → INTENT: Knowledge → targetId: "knowledge"
+"അറിവ്" → INTENT: Knowledge → targetId: "knowledge"
+"പഠിക്കാൻ" → INTENT: Knowledge → targetId: "knowledge"
 
 Hindi:
 "मेरे टमाटर के पत्तों पर धब्बे हैं" → INTENT: Plant disease → targetId: "diagnose"
 "आज चावल का भाव क्या है?" → INTENT: Market prices → targetId: "market"
 "इस महीने खाद पर कितना खर्च हुआ?" → INTENT: Expenses → targetId: "expense"
+"प्रोफाइल" → INTENT: Profile → targetId: "profile"
+"मेरा प्रोफाइल" → INTENT: Profile → targetId: "profile"
+"होम" → INTENT: Home → targetId: "home"
+"घर जाना है" → INTENT: Home → targetId: "home"
 
 CONTEXT PATTERNS TO RECOGNIZE:
 - Plant problems/symptoms/diseases → "diagnose"
@@ -685,6 +717,18 @@ CONTEXT PATTERNS TO RECOGNIZE:
 - Community questions/discussions → "forum"
 - Planning next crop/timing → "planner"
 - Pest identification/control → "scan" or "diagnose"
+
+NAVIGATION PATTERNS (Malayalam/Hindi/English):
+- Profile words: "പ്രൊഫൈൽ", "പ്രോഫൈൽ", "profile", "प्रोफाइल", "मेरा प्रोफाइल" → "profile"
+- Home words: "ഹോം", "വീട്", "home", "होम", "घर" → "home"
+- News words: "വാർത്ത", "ന്യൂസ്", "news", "समाचार", "न्यूज़" → "news"
+- Forum words: "ഫോറം", "കർഷക ഫോറം", "forum", "फोरम", "किसान फोरम" → "forum"
+- Market words: "വിപണി", "market", "बाज़ार", "मंडी" → "market"
+- Weather words: "കാലാവസ്ഥ", "weather", "मौसम" → "weather"
+- Alert words: "അലർട്ട്", "മുന്നറിയിപ്പ്", "alert", "अलर्ट", "चेतावनी" → "notifications"
+- Twin words: "ട്വിൻ", "കാർഷിക ട്വിൻ", "twin", "farming twin", "ट्विन" → "twin"
+- Expense words: "ചെലവ്", "ചിലവ്", "expense", "खर्च", "लागत" → "expense"
+- Knowledge words: "വിജ്ഞാനം", "അറിവ്", "knowledge", "ज्ञान", "जानकारी" → "knowledge"
 
 ADVANCED REASONING:
 - If user describes symptoms (spots, yellowing, wilting, pests) → "diagnose"
@@ -780,6 +824,77 @@ export function offlineMatch(
 ): VoiceDecision {
   const q = queryRaw.toLowerCase();
   const map: Array<{ keys: string[]; target: FeatureId }> = [
+    // Profile navigation
+    {
+      keys: [
+        "profile",
+        "my profile",
+        "account",
+        "settings",
+        "പ്രൊഫൈൽ",
+        "പ്രോഫൈൽ",
+        "എന്റെ പ്രൊഫൈൽ",
+        "അക്കൗണ്ട്",
+        "സെറ്റിംഗ്സ്",
+        "प्रोफाइल",
+        "मेरा प्रोफाइल",
+        "खाता",
+      ],
+      target: "profile",
+    },
+    // Home navigation
+    {
+      keys: [
+        "home",
+        "homepage",
+        "dashboard",
+        "main",
+        "ഹോം",
+        "ഹോം പേജ്",
+        "ഡാഷ്ബോർഡ്",
+        "വീട്",
+        "मुख्य",
+        "होम",
+        "डैशबोर्ड",
+      ],
+      target: "home",
+    },
+    // Notifications/Alerts
+    {
+      keys: [
+        "alert",
+        "alerts",
+        "notification",
+        "notifications",
+        "warning",
+        "അലർട്ട്",
+        "അലർട്ടുകൾ",
+        "അറിയിപ്പ്",
+        "അറിയിപ്പുകൾ",
+        "മുന്നറിയിപ്പ്",
+        "मुन्नारियिप्पुकळ्",
+        "अलर्ट",
+        "सूचना",
+        "चेतावनी",
+      ],
+      target: "notifications",
+    },
+    // News
+    {
+      keys: [
+        "news",
+        "agriculture news",
+        "farming news",
+        "വാർത്ത",
+        "വാർത്തകൾ",
+        "ന്യൂസ്",
+        "കാർഷിക വാർത്തകൾ",
+        "समाचार",
+        "न्यूज़",
+        "कृषि समाचार",
+      ],
+      target: "news",
+    },
     {
       keys: [
         "expense",
