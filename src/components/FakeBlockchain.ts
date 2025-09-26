@@ -1,3 +1,7 @@
+// This file is deprecated - blockchain functionality has been removed
+// The FairFarm component now uses a simple marketplace without blockchain
+
+/*
 import sha256 from 'crypto-js/sha256';
 
 export interface Transaction {
@@ -34,3 +38,4 @@ export function addTransaction(from: string, to: string, product: string, timest
 export function getTransactions(): Transaction[] {
   return ledger;
 }
+*/
