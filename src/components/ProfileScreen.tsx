@@ -29,15 +29,22 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack }) => {
   const { t } = useTranslation();
   const { firebaseUser } = useAuth();
 
-  const farmerData = {
-    name: "Ramesh Kumar",
-    phone: "+91 9876543210",
-    location: "Mysore, Karnataka",
+  // Use Firebase user data when available, otherwise use fallback data
+  const userData = {
+    name: firebaseUser?.displayName || "Farmer",
+    email: firebaseUser?.email || "farmer@example.com",
+    phone: firebaseUser?.phoneNumber || "+91 9876543210",
+    location: "Mysore, Karnataka", // This could be enhanced to get location from user
     farmSize: "2.5 acres",
     soilType: "Red Soil",
     experience: "5 years",
-    language: "Malayalam",
+    language: "English",
     aiLevel: "Intermediate",
+    verified: firebaseUser?.emailVerified || false,
+    photoURL: firebaseUser?.photoURL || null,
+    joinedDate: firebaseUser?.metadata?.creationTime
+      ? new Date(firebaseUser.metadata.creationTime).toLocaleDateString()
+      : "Recently",
   };
 
   const menuItems = [
@@ -109,9 +116,12 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack }) => {
             <div className="flex items-center space-x-4 mb-4">
               <div className="relative">
                 <Avatar className="h-20 w-20 ring-2 ring-green-500/20 dark:ring-green-400/30">
-                  <AvatarImage src="" alt={farmerData.name} />
+                  <AvatarImage
+                    src={userData.photoURL || ""}
+                    alt={userData.name}
+                  />
                   <AvatarFallback className="bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 text-xl font-semibold">
-                    {farmerData.name
+                    {userData.name
                       .split(" ")
                       .map((n) => n[0])
                       .join("")}
@@ -122,15 +132,25 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack }) => {
                 </button>
               </div>
               <div className="flex-1">
-                <h2 className="text-xl font-bold text-gray-800 dark:text-foreground">
-                  {farmerData.name}
-                </h2>
+                <div className="flex items-center gap-2 mb-1">
+                  <h2 className="text-xl font-bold text-gray-800 dark:text-foreground">
+                    {userData.name}
+                  </h2>
+                  {userData.verified && (
+                    <div className="bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 px-2 py-1 rounded-full text-xs font-medium">
+                      ✓ Verified
+                    </div>
+                  )}
+                </div>
+                <p className="text-sm text-gray-600 dark:text-muted-foreground mb-1">
+                  {userData.email}
+                </p>
                 <p className="text-gray-600 dark:text-muted-foreground flex items-center mt-1">
                   <MapPin className="h-4 w-4 mr-1" />
-                  {farmerData.location}
+                  {userData.location}
                 </p>
                 <p className="text-sm text-gray-500 dark:text-muted-foreground mt-1">
-                  {farmerData.phone}
+                  {userData.phone} • Joined {userData.joinedDate}
                 </p>
               </div>
             </div>
@@ -139,7 +159,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack }) => {
             <div className="grid grid-cols-2 gap-4 pt-4 border-t border-border">
               <div className="text-center">
                 <p className="text-2xl font-bold text-green-600 dark:text-green-400">
-                  {farmerData.farmSize}
+                  {userData.farmSize}
                 </p>
                 <p className="text-sm text-gray-600 dark:text-muted-foreground">
                   Farm Size
@@ -147,7 +167,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack }) => {
               </div>
               <div className="text-center">
                 <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                  {farmerData.experience}
+                  {userData.experience}
                 </p>
                 <p className="text-sm text-gray-600 dark:text-muted-foreground">
                   Experience
@@ -178,7 +198,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack }) => {
                 Soil Type
               </span>
               <span className="font-medium text-foreground">
-                {farmerData.soilType}
+                {userData.soilType}
               </span>
             </div>
             <div className="flex justify-between items-center py-2">
@@ -186,7 +206,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack }) => {
                 Primary Language
               </span>
               <span className="font-medium text-foreground">
-                {farmerData.language}
+                {userData.language}
               </span>
             </div>
             <div className="flex justify-between items-center py-2">
@@ -194,7 +214,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack }) => {
                 AI Assistance Level
               </span>
               <span className="font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 px-2 py-1 rounded text-sm border border-blue-200 dark:border-blue-800">
-                {farmerData.aiLevel}
+                {userData.aiLevel}
               </span>
             </div>
           </CardContent>
