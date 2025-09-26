@@ -18,27 +18,19 @@ import {
   Thermometer,
   BarChart3,
   Target,
-  Timer,
   Droplets,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 interface CropPlannerScreenProps {
   onBack?: () => void;
@@ -47,10 +39,7 @@ interface CropPlannerScreenProps {
 interface CropPlan {
   id: number;
   crop: string;
-  startDate: string;
-  endDate: string;
   area: string;
-  status: "Active" | "Planned" | "Completed";
   variety?: string;
   expectedYieldPerAcre?: number;
   currentMarketPrice?: number;
@@ -183,10 +172,7 @@ const CropPlannerScreen: React.FC<CropPlannerScreenProps> = ({ onBack }) => {
     {
       id: 1,
       crop: "Tomato",
-      startDate: "2025-03-01",
-      endDate: "2025-06-01",
       area: "0.3 acres", // A more realistic plot size for a small farmer
-      status: "Active" as const,
       sowingDate: "2025-03-01",
       lastWatered: "2025-08-20",
       fertilizedDate: "2025-08-15",
@@ -195,19 +181,13 @@ const CropPlannerScreen: React.FC<CropPlannerScreenProps> = ({ onBack }) => {
     {
       id: 2,
       crop: "Chilli",
-      startDate: "2025-09-01",
-      endDate: "2025-12-30",
       area: "0.1 acres", // Very small plot for high-value crop
-      status: "Planned" as const,
       expenses: 5000,
     },
     {
       id: 3,
       crop: "Carrot", // Changed from Onion to a more common local crop
-      startDate: "2024-11-01",
-      endDate: "2025-04-01",
       area: "0.2 acres", // Small plot size
-      status: "Completed" as const,
       expenses: 10000,
     },
   ]);
@@ -215,40 +195,11 @@ const CropPlannerScreen: React.FC<CropPlannerScreenProps> = ({ onBack }) => {
   const [selectedPlan, setSelectedPlan] = useState<CropPlan | null>(null);
   const [formData, setFormData] = useState<{
     crop: string;
-    startDate: string;
-    endDate: string;
     area: string;
-    status: "Active" | "Planned" | "Completed";
   }>({
     crop: "",
-    startDate: "",
-    endDate: "",
     area: "",
-    status: "Planned",
   });
-
-  const cropOptions = [
-    "Tomato",
-    "Chilli",
-    "Onion",
-    "Rice",
-    "Wheat",
-    "Corn",
-    "Potato",
-    "Carrot",
-    "Cabbage",
-    "Lettuce",
-    "Spinach",
-    "Beans",
-    "Peas",
-    "Cucumber",
-    "Pepper",
-    "Brinjal",
-    "Okra",
-    "Cauliflower",
-    "Broccoli",
-    "Radish",
-  ];
 
   // Advanced calculation functions
   const parseArea = (areaString: string): number => {
@@ -278,22 +229,6 @@ const CropPlannerScreen: React.FC<CropPlannerScreenProps> = ({ onBack }) => {
     return expectedIncome - expenses;
   };
 
-  const getDaysUntilHarvest = (endDate: string): number => {
-    const today = new Date();
-    const harvest = new Date(endDate);
-    const diffTime = harvest.getTime() - today.getTime();
-    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  };
-
-  const getCropProgress = (startDate: string, endDate: string): number => {
-    const today = new Date();
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    const totalDuration = end.getTime() - start.getTime();
-    const elapsed = today.getTime() - start.getTime();
-    return Math.max(0, Math.min(100, (elapsed / totalDuration) * 100));
-  };
-
   const getWeatherIcon = (season: string) => {
     switch (season) {
       case "Summer":
@@ -312,7 +247,7 @@ const CropPlannerScreen: React.FC<CropPlannerScreenProps> = ({ onBack }) => {
     const today = new Date();
     const cropData = cropDatabase[plan.crop];
 
-    if (plan.status === "Active" && cropData) {
+    if (cropData) {
       // Water reminder (every 3 days)
       if (plan.lastWatered) {
         const lastWater = new Date(plan.lastWatered);
@@ -348,16 +283,6 @@ const CropPlannerScreen: React.FC<CropPlannerScreenProps> = ({ onBack }) => {
           });
         }
       }
-
-      // Harvest reminder
-      const daysUntilHarvest = getDaysUntilHarvest(plan.endDate);
-      if (daysUntilHarvest <= 7 && daysUntilHarvest > 0) {
-        tasks.push({
-          type: "harvest",
-          message: `Harvest in ${daysUntilHarvest} days`,
-          urgency: "high",
-        });
-      }
     }
 
     return tasks;
@@ -383,14 +308,7 @@ const CropPlannerScreen: React.FC<CropPlannerScreenProps> = ({ onBack }) => {
     );
     const totalProfit = totalExpectedIncome - totalExpenses;
 
-    const upcomingHarvests = cropPlans.filter((plan) => {
-      const daysUntilHarvest = getDaysUntilHarvest(plan.endDate);
-      return (
-        daysUntilHarvest <= 30 &&
-        daysUntilHarvest > 0 &&
-        plan.status === "Active"
-      );
-    }).length;
+    const upcomingHarvests = 0; // Removed date-based logic
 
     const allTasks = cropPlans.flatMap((plan) => getUpcomingTasks(plan));
 
@@ -410,18 +328,12 @@ const CropPlannerScreen: React.FC<CropPlannerScreenProps> = ({ onBack }) => {
     if (plan) {
       setFormData({
         crop: plan.crop,
-        startDate: plan.startDate,
-        endDate: plan.endDate,
         area: plan.area,
-        status: plan.status,
       });
     } else {
       setFormData({
         crop: "",
-        startDate: "",
-        endDate: "",
         area: "",
-        status: "Planned",
       });
     }
     setIsModalOpen(true);
@@ -432,10 +344,7 @@ const CropPlannerScreen: React.FC<CropPlannerScreenProps> = ({ onBack }) => {
     setSelectedPlan(null);
     setFormData({
       crop: "",
-      startDate: "",
-      endDate: "",
       area: "",
-      status: "Planned",
     });
   };
 
@@ -446,15 +355,230 @@ const CropPlannerScreen: React.FC<CropPlannerScreenProps> = ({ onBack }) => {
     }));
   };
 
-  const handleSavePlan = () => {
-    if (
-      !formData.crop ||
-      !formData.startDate ||
-      !formData.endDate ||
-      !formData.area
-    ) {
+  const generateCropTodoList = async (crop: string, area: string) => {
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+
+    // Fallback todo lists for common crops
+    const fallbackTodos = {
+      tomato: [
+        {
+          day: 1,
+          tasks: [
+            "Prepare soil with compost",
+            "Test soil pH (6.0-6.8)",
+            "Set up irrigation system",
+          ],
+        },
+        {
+          day: 2,
+          tasks: [
+            "Plant tomato seedlings",
+            "Install support stakes",
+            "Apply base fertilizer",
+          ],
+        },
+        {
+          day: 3,
+          tasks: [
+            "Water seedlings gently",
+            "Check for pest signs",
+            "Mulch around plants",
+          ],
+        },
+      ],
+      rice: [
+        {
+          day: 1,
+          tasks: [
+            "Prepare paddy field",
+            "Level the field properly",
+            "Check water source",
+          ],
+        },
+        {
+          day: 2,
+          tasks: ["Soak rice seeds", "Prepare seedbed", "Apply organic matter"],
+        },
+        {
+          day: 3,
+          tasks: [
+            "Transplant seedlings",
+            "Maintain water level",
+            "Remove weeds",
+          ],
+        },
+      ],
+      wheat: [
+        {
+          day: 1,
+          tasks: [
+            "Till the soil deeply",
+            "Apply farmyard manure",
+            "Level the field",
+          ],
+        },
+        {
+          day: 2,
+          tasks: [
+            "Sow wheat seeds",
+            "Apply phosphorus fertilizer",
+            "Light irrigation",
+          ],
+        },
+        {
+          day: 3,
+          tasks: [
+            "Check germination",
+            "Apply nitrogen fertilizer",
+            "Monitor for pests",
+          ],
+        },
+      ],
+      onion: [
+        {
+          day: 1,
+          tasks: [
+            "Prepare raised beds",
+            "Add organic compost",
+            "Check drainage system",
+          ],
+        },
+        {
+          day: 2,
+          tasks: [
+            "Plant onion seedlings",
+            "Space plants properly",
+            "Apply base fertilizer",
+          ],
+        },
+        {
+          day: 3,
+          tasks: ["Light watering", "Remove weeds", "Check for thrips"],
+        },
+      ],
+      default: [
+        {
+          day: 1,
+          tasks: [
+            "Prepare soil thoroughly",
+            "Test soil conditions",
+            "Plan irrigation",
+          ],
+        },
+        {
+          day: 2,
+          tasks: [
+            "Plant/sow seeds",
+            "Apply base fertilizer",
+            "Set up support if needed",
+          ],
+        },
+        {
+          day: 3,
+          tasks: [
+            "Water appropriately",
+            "Monitor growth",
+            "Check for pests/diseases",
+          ],
+        },
+      ],
+    };
+
+    if (!apiKey) {
+      console.error("Gemini API key not found, using fallback todos");
+      const cropKey = crop.toLowerCase() as keyof typeof fallbackTodos;
+      return fallbackTodos[cropKey] || fallbackTodos.default;
+    }
+
+    try {
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
+
+      const prompt = `Generate a 3-day farming todo list for growing ${crop} on ${area} of land. 
+      Return ONLY a valid JSON array with this exact format:
+      [{"day": 1, "tasks": ["task1", "task2", "task3"]}, {"day": 2, "tasks": ["task4", "task5", "task6"]}, {"day": 3, "tasks": ["task7", "task8", "task9"]}]
+      
+      Requirements:
+      - Each day should have 2-4 specific, actionable farming tasks
+      - Focus on practical activities: soil prep, seeding, watering, fertilizing, pest control
+      - Tasks should be specific to ${crop} cultivation
+      - Consider the land area: ${area}
+      - No extra text, just the JSON array`;
+
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      const text = response.text().trim();
+
+      // Clean up the response text
+      let cleanText = text;
+
+      // Remove markdown code blocks if present
+      cleanText = cleanText.replace(/```json\s*/g, "").replace(/```\s*/g, "");
+
+      // Remove any leading/trailing whitespace and newlines
+      cleanText = cleanText.trim();
+
+      // Find JSON array boundaries more precisely
+      const startIndex = cleanText.indexOf("[");
+      const lastIndex = cleanText.lastIndexOf("]");
+
+      if (startIndex !== -1 && lastIndex !== -1 && lastIndex > startIndex) {
+        const jsonString = cleanText.substring(startIndex, lastIndex + 1);
+
+        try {
+          const parsed = JSON.parse(jsonString);
+
+          // Validate the structure
+          if (Array.isArray(parsed) && parsed.length === 3) {
+            const isValid = parsed.every(
+              (day) =>
+                day.day && Array.isArray(day.tasks) && day.tasks.length > 0
+            );
+
+            if (isValid) {
+              return parsed;
+            }
+          }
+        } catch (parseError) {
+          console.error("JSON parse error:", parseError);
+        }
+      }
+
+      // If parsing fails, use fallback
+      console.warn("Failed to parse Gemini response, using fallback todos");
+      const cropKey = crop.toLowerCase() as keyof typeof fallbackTodos;
+      return fallbackTodos[cropKey] || fallbackTodos.default;
+    } catch (error) {
+      console.error("Error generating todo list:", error);
+      // Return fallback todos
+      const cropKey = crop.toLowerCase() as keyof typeof fallbackTodos;
+      return fallbackTodos[cropKey] || fallbackTodos.default;
+    }
+  };
+
+  const handleSavePlan = async () => {
+    if (!formData.crop || !formData.area) {
       alert("Please fill in all fields");
       return;
+    }
+
+    // Generate todo list for new plans
+    let todoList = null;
+    if (!selectedPlan) {
+      todoList = await generateCropTodoList(formData.crop, formData.area);
+
+      // Save todo list to localStorage
+      if (todoList) {
+        localStorage.setItem(
+          "cropTodoList",
+          JSON.stringify({
+            crop: formData.crop,
+            area: formData.area,
+            todoList: todoList,
+            createdAt: new Date().toISOString(),
+          })
+        );
+      }
     }
 
     if (selectedPlan) {
@@ -490,19 +614,6 @@ const CropPlannerScreen: React.FC<CropPlannerScreenProps> = ({ onBack }) => {
   const handleDeletePlan = (id: number) => {
     if (confirm("Are you sure you want to delete this crop plan?")) {
       setCropPlans(cropPlans.filter((plan) => plan.id !== id));
-    }
-  };
-
-  const getStatusBadgeVariant = (status: string) => {
-    switch (status) {
-      case "Active":
-        return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300 border-green-200";
-      case "Planned":
-        return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300 border-blue-200";
-      case "Completed":
-        return "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300 border-gray-200";
-      default:
-        return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300";
     }
   };
 
@@ -623,7 +734,6 @@ const CropPlannerScreen: React.FC<CropPlannerScreenProps> = ({ onBack }) => {
           </h2>
           {cropPlans.map((plan) => {
             const cropData = cropDatabase[plan.crop];
-            const progress = getCropProgress(plan.startDate, plan.endDate);
             const expectedYield = calculateEstimatedYield(plan.crop, plan.area);
             const expectedIncome = calculateExpectedIncome(
               plan.crop,
@@ -634,7 +744,6 @@ const CropPlannerScreen: React.FC<CropPlannerScreenProps> = ({ onBack }) => {
               plan.area,
               plan.expenses || 0
             );
-            const daysToHarvest = getDaysUntilHarvest(plan.endDate);
 
             return (
               <Card key={plan.id} className="hover:shadow-md transition-shadow">
@@ -647,9 +756,6 @@ const CropPlannerScreen: React.FC<CropPlannerScreenProps> = ({ onBack }) => {
                           {plan.crop}
                         </h3>
                         {cropData && getWeatherIcon(cropData.season)}
-                        <Badge className={getStatusBadgeVariant(plan.status)}>
-                          {plan.status}
-                        </Badge>
                       </div>
                       <div className="flex items-center space-x-2">
                         <Button
@@ -670,21 +776,6 @@ const CropPlannerScreen: React.FC<CropPlannerScreenProps> = ({ onBack }) => {
                         </Button>
                       </div>
                     </div>
-
-                    {/* Progress Bar */}
-                    {plan.status === "Active" && (
-                      <div className="w-full rounded-full h-5 mb-2">
-                        <div
-                          className="bg-primary h-2 rounded-full transition-all duration-300"
-                          style={{ width: `${progress}%` }}
-                        />
-                        <div className="flex justify-between text-xs text-muted-foreground mt-1 mb-6">
-                          <span>Sowing</span>
-                          <span>Growing ({Math.round(progress)}%)</span>
-                          <span>Harvest</span>
-                        </div>
-                      </div>
-                    )}
 
                     {/* Key Metrics Grid */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm mt-4">
@@ -718,23 +809,8 @@ const CropPlannerScreen: React.FC<CropPlannerScreenProps> = ({ onBack }) => {
                       </div>
                     </div>
 
-                    {/* Timeline and Tips */}
-                    <div className="flex justify-between items-center text-xs text-muted-foreground">
-                      <span>
-                        {plan.startDate} → {plan.endDate}
-                      </span>
-                      {plan.status === "Active" && (
-                        <span className="flex items-center gap-1">
-                          <Timer className="h-3 w-3" />
-                          {daysToHarvest > 0
-                            ? `${daysToHarvest} days to harvest`
-                            : "Ready to harvest!"}
-                        </span>
-                      )}
-                    </div>
-
                     {/* Crop Health Tips */}
-                    {cropData && cropData.tips && plan.status === "Active" && (
+                    {cropData && cropData.tips && (
                       <div className="bg-muted/50 p-2 rounded-lg text-xs">
                         <div className="flex items-center gap-1 text-foreground font-medium mb-1">
                           <AlertCircle className="h-3 w-3 text-orange-600" />
@@ -751,46 +827,6 @@ const CropPlannerScreen: React.FC<CropPlannerScreenProps> = ({ onBack }) => {
             );
           })}
         </div>
-
-        {/* Quick Stats */}
-        <Card className="dark:bg-gray-800 dark:border-gray-700 shadow-sm dark:shadow-lg transition-all duration-300">
-          <CardHeader>
-            <CardTitle className="text-base dark:text-white">
-              Quick Stats
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-3 gap-4 text-center">
-              <div>
-                <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                  {cropPlans.filter((plan) => plan.status === "Active").length}
-                </p>
-                <p className="text-sm text-gray-600 dark:text-gray-300">
-                  Active Plans
-                </p>
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">
-                  {cropPlans.filter((plan) => plan.status === "Planned").length}
-                </p>
-                <p className="text-sm text-gray-600 dark:text-gray-300">
-                  Planned Plans
-                </p>
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-green-600 dark:text-green-400">
-                  {
-                    cropPlans.filter((plan) => plan.status === "Completed")
-                      .length
-                  }
-                </p>
-                <p className="text-sm text-gray-600 dark:text-gray-300">
-                  Completed Plans
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
 
         {/* Add New Plan Button */}
         <Button
@@ -814,21 +850,12 @@ const CropPlannerScreen: React.FC<CropPlannerScreenProps> = ({ onBack }) => {
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="crop">Crop Type</Label>
-              <Select
+              <Input
+                id="crop"
+                placeholder="Enter crop type (e.g., Tomato, Rice, Wheat)"
                 value={formData.crop}
-                onValueChange={(value) => handleInputChange("crop", value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a crop" />
-                </SelectTrigger>
-                <SelectContent>
-                  {cropOptions.map((crop) => (
-                    <SelectItem key={crop} value={crop}>
-                      {crop}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                onChange={(e) => handleInputChange("crop", e.target.value)}
+              />
             </div>
 
             <div className="space-y-2">
@@ -839,49 +866,6 @@ const CropPlannerScreen: React.FC<CropPlannerScreenProps> = ({ onBack }) => {
                 value={formData.area}
                 onChange={(e) => handleInputChange("area", e.target.value)}
               />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="startDate">Start Date</Label>
-                <Input
-                  id="startDate"
-                  type="date"
-                  value={formData.startDate}
-                  onChange={(e) =>
-                    handleInputChange("startDate", e.target.value)
-                  }
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="endDate">End Date</Label>
-                <Input
-                  id="endDate"
-                  type="date"
-                  value={formData.endDate}
-                  onChange={(e) => handleInputChange("endDate", e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="status">Status</Label>
-              <Select
-                value={formData.status}
-                onValueChange={(value: "Active" | "Planned" | "Completed") =>
-                  handleInputChange("status", value)
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Planned">Planned</SelectItem>
-                  <SelectItem value="Active">Active</SelectItem>
-                  <SelectItem value="Completed">Completed</SelectItem>
-                </SelectContent>
-              </Select>
             </div>
           </div>
 

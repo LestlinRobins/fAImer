@@ -25,6 +25,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { useTranslation } from "@/contexts/TranslationContext";
 import { routeFromTranscript } from "@/lib/voiceNavigation";
 import { useAuth } from "@/contexts/AuthContext";
+import CropTodoList from "./CropTodoList";
 // Crop Wise icon now served from public uploads
 // Mapping icon now served from public uploads
 
@@ -937,6 +938,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
       )}
 
       <div className="p-4 space-y-6">
+        {/* Crop Todo List */}
+        <CropTodoList language={language} />
+
         {/* Quick Actions */}
         <div>
           <div className="grid grid-cols-2 gap-3">
