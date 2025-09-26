@@ -872,9 +872,14 @@ export const FEATURE_KB: Array<{
 let offlineLLM: any = null;
 let isLLMLoading = false;
 let llmLoadPromise: Promise<any> | null = null;
+let loadingProgressCallback:
+  | ((progress: { text: string; percentage: number }) => void)
+  | null = null;
 
 // Initialize the offline LLM (lightweight text generation model)
-export async function initOfflineLLM(): Promise<boolean> {
+export async function initOfflineLLM(
+  onProgress?: (progress: { text: string; percentage: number }) => void
+): Promise<boolean> {
   if (offlineLLM) {
     console.log("✅ Offline LLM already initialized");
     return true;
@@ -882,6 +887,10 @@ export async function initOfflineLLM(): Promise<boolean> {
 
   if (isLLMLoading) {
     console.log("⏳ LLM already loading, waiting...");
+    // Set new progress callback if provided
+    if (onProgress) {
+      loadingProgressCallback = onProgress;
+    }
     try {
       await llmLoadPromise;
       return offlineLLM !== null;
@@ -892,28 +901,91 @@ export async function initOfflineLLM(): Promise<boolean> {
   }
 
   isLLMLoading = true;
+  loadingProgressCallback = onProgress;
   console.log("🤖 Initializing offline LLM for voice navigation...");
+
+  // Notify start of loading
+  if (loadingProgressCallback) {
+    loadingProgressCallback({ text: "Preparing AI model...", percentage: 0 });
+  }
 
   llmLoadPromise = (async () => {
     try {
+      // Notify download start
+      if (loadingProgressCallback) {
+        loadingProgressCallback({
+          text: "Downloading AI model (248MB)...",
+          percentage: 10,
+        });
+      }
+
       // Use a lightweight text generation model that works well for structured output
       offlineLLM = await pipeline(
         "text-generation",
-        "Xenova/LaMini-Flan-T5-248M" // Lightweight, multilingual, good for instruction following
+        "Xenova/LaMini-Flan-T5-248M", // Lightweight, multilingual, good for instruction following
+        {
+          // Progress callback for the actual model loading
+          progress_callback: (progress: any) => {
+            if (loadingProgressCallback && progress) {
+              const percentage = Math.min(
+                90,
+                10 + (progress.progress || 0) * 80
+              );
+              let text = "Downloading AI model...";
+
+              if (progress.status === "loading") {
+                text = `Loading model files... (${Math.round(percentage)}%)`;
+              } else if (progress.status === "ready") {
+                text = "Initializing AI engine...";
+              }
+
+              loadingProgressCallback({ text, percentage });
+            }
+          },
+        }
       );
+
+      // Notify completion
+      if (loadingProgressCallback) {
+        loadingProgressCallback({ text: "AI model ready!", percentage: 100 });
+      }
+
       console.log("✅ Offline LLM initialized successfully!");
       return offlineLLM;
     } catch (error) {
       console.warn("❌ Failed to initialize offline LLM:", error);
       console.log("🔄 Trying alternative model...");
 
+      if (loadingProgressCallback) {
+        loadingProgressCallback({
+          text: "Trying alternative model...",
+          percentage: 30,
+        });
+      }
+
       try {
         // Fallback to an even smaller model if the first one fails
         offlineLLM = await pipeline("text-generation", "Xenova/distilgpt2");
+
+        if (loadingProgressCallback) {
+          loadingProgressCallback({
+            text: "Backup AI model ready!",
+            percentage: 100,
+          });
+        }
+
         console.log("✅ Offline LLM initialized with fallback model!");
         return offlineLLM;
       } catch (cpuError) {
         console.error("❌ Failed to initialize LLM even on CPU:", cpuError);
+
+        if (loadingProgressCallback) {
+          loadingProgressCallback({
+            text: "AI model failed to load",
+            percentage: 0,
+          });
+        }
+
         offlineLLM = null;
         return null;
       }
@@ -923,9 +995,11 @@ export async function initOfflineLLM(): Promise<boolean> {
   try {
     await llmLoadPromise;
     isLLMLoading = false;
+    loadingProgressCallback = null; // Clear callback after completion
     return offlineLLM !== null;
   } catch (error) {
     isLLMLoading = false;
+    loadingProgressCallback = null;
     console.error("❌ LLM initialization failed:", error);
     return false;
   }
@@ -937,10 +1011,40 @@ export function isOfflineLLMReady(): boolean {
 }
 
 // Get LLM loading status for UI
-export function getOfflineLLMStatus(): { ready: boolean; loading: boolean } {
+export function getOfflineLLMStatus(): {
+  ready: boolean;
+  loading: boolean;
+  error: boolean;
+  mode: "ai" | "keywords" | "loading" | "error";
+  statusText: string;
+} {
+  if (offlineLLM !== null) {
+    return {
+      ready: true,
+      loading: false,
+      error: false,
+      mode: "ai",
+      statusText: "AI Ready - Full natural language understanding",
+    };
+  }
+
+  if (isLLMLoading) {
+    return {
+      ready: false,
+      loading: true,
+      error: false,
+      mode: "loading",
+      statusText: "Loading AI model...",
+    };
+  }
+
+  // LLM failed to load or not initialized yet
   return {
-    ready: offlineLLM !== null,
-    loading: isLLMLoading,
+    ready: false,
+    loading: false,
+    error: offlineLLM === null && !isLLMLoading,
+    mode: "keywords",
+    statusText: "Keyword Mode - Basic voice commands only",
   };
 }
 
