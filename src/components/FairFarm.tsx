@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { addTransaction, getTransactions, Transaction } from "./TechAwareness";
+import { addTransaction, getTransactions, Transaction } from "./FakeBlockchain";
 import {
   ArrowLeft,
   Store,
