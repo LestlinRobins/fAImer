@@ -70,10 +70,7 @@
 
     <!-- PWA Service Worker Registration -->
     <script>
-      if (
-        "serviceWorker" in navigator &&
-        !window.location.hostname.includes("localhost")
-      ) {
+      if ("serviceWorker" in navigator) {
         window.addEventListener("load", function () {
           navigator.serviceWorker.register("/sw.js").then(
             function (registration) {
@@ -82,23 +79,63 @@
               // Check for service worker updates
               registration.addEventListener("updatefound", () => {
                 const newWorker = registration.installing;
+                console.log("New service worker found, installing...");
+
                 newWorker.addEventListener("statechange", () => {
-                  if (
-                    newWorker.state === "installed" &&
-                    navigator.serviceWorker.controller
-                  ) {
-                    // New content is available, refresh the page
-                    console.log("New content available, refreshing...");
-                    window.location.reload();
+                  if (newWorker.state === "installed") {
+                    if (navigator.serviceWorker.controller) {
+                      // New content is available
+                      console.log("New content available");
+
+                      // Show update notification (optional)
+                      if (
+                        window.confirm(
+                          "New version available! Reload to update?"
+                        )
+                      ) {
+                        window.location.reload();
+                      }
+                    } else {
+                      // Content is cached for the first time
+                      console.log("Content is cached for offline use");
+
+                      // Show offline ready notification
+                      const notification = document.createElement("div");
+                      notification.style.cssText = `
+                        position: fixed; top: 10px; right: 10px; z-index: 9999;
+                        background: #16a34a; color: white; padding: 10px 20px;
+                        border-radius: 5px; font-family: Arial, sans-serif;
+                        box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+                      `;
+                      notification.textContent = "App ready for offline use!";
+                      document.body.appendChild(notification);
+
+                      setTimeout(() => notification.remove(), 5000);
+                    }
                   }
                 });
               });
+
+              // Listen for controlling event
+              navigator.serviceWorker.addEventListener(
+                "controllerchange",
+                () => {
+                  console.log("New service worker is now controlling the page");
+                }
+              );
             },
             function (registrationError) {
               console.log("SW registration failed: ", registrationError);
             }
           );
         });
+
+        // Listen for service worker messages
+        navigator.serviceWorker.addEventListener("message", (event) => {
+          console.log("Received message from service worker:", event.data);
+        });
+      } else {
+        console.log("Service workers are not supported in this browser");
       }
     </script>
   </body>

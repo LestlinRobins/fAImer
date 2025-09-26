@@ -7,6 +7,8 @@ import { ConvexProvider } from "convex/react";
 import { convex } from "./lib/convex";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { AuthProvider } from "./contexts/AuthContext";
+import { OfflineIndicator } from "./components/OfflineIndicator";
+import { CachePreloader } from "./components/CachePreloader";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 
@@ -18,6 +20,8 @@ const App = () => (
       <AuthProvider>
         <ThemeProvider>
           <TooltipProvider>
+            <CachePreloader />
+            <OfflineIndicator />
             <Toaster />
             <Sonner />
             <BrowserRouter>
