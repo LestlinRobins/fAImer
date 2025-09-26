@@ -47,13 +47,15 @@ interface PurchaseOrder {
   buyer: string;
   price: number;
   timestamp: string;
-  status: 'pending' | 'confirmed' | 'delivered';
+  status: "pending" | "confirmed" | "delivered";
 }
 
 const FairFarm: React.FC<FairFarmProps> = ({ onBack }) => {
   const [showBuyerModal, setShowBuyerModal] = useState(false);
   const [buyerNameInput, setBuyerNameInput] = useState("");
-  const [pendingProduct, setPendingProduct] = useState<FarmProduct | null>(null);
+  const [pendingProduct, setPendingProduct] = useState<FarmProduct | null>(
+    null
+  );
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
@@ -68,7 +70,7 @@ const FairFarm: React.FC<FairFarmProps> = ({ onBack }) => {
       timeZone: "Asia/Kolkata",
       hour12: true,
     });
-    
+
     const newOrder: PurchaseOrder = {
       id: purchaseOrders.length + 1,
       productId: product.id,
@@ -77,13 +79,15 @@ const FairFarm: React.FC<FairFarmProps> = ({ onBack }) => {
       buyer: buyerName,
       price: product.price,
       timestamp: indiaTime,
-      status: 'confirmed'
+      status: "confirmed",
     };
-    
-    setPurchaseOrders(prev => [...prev, newOrder]);
-    
+
+    setPurchaseOrders((prev) => [...prev, newOrder]);
+
     // Show success message
-    setSuccessMessage(`Order confirmed! ${product.name} from ${product.farmer} for ₹${product.price}`);
+    setSuccessMessage(
+      `Order confirmed! ${product.name} from ${product.farmer} for ₹${product.price}`
+    );
     setShowSuccessMessage(true);
     setTimeout(() => setShowSuccessMessage(false), 5000);
   };
@@ -257,7 +261,7 @@ const FairFarm: React.FC<FairFarmProps> = ({ onBack }) => {
           </div>
         </div>
       )}
-      
+
       {/* Success Message */}
       {showSuccessMessage && (
         <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50">
@@ -267,7 +271,7 @@ const FairFarm: React.FC<FairFarmProps> = ({ onBack }) => {
           </div>
         </div>
       )}
-      
+
       <div className="pb-20 bg-background min-h-screen transition-colors duration-300">
         {/* Header */}
         <div className="sticky top-0 bg-background/95 backdrop-blur-sm z-10 border-b border-border">
@@ -298,16 +302,18 @@ const FairFarm: React.FC<FairFarmProps> = ({ onBack }) => {
           {/* Purchase History Toggle */}
           <div className="mb-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-foreground">Recent Orders</h3>
+              <h3 className="text-lg font-semibold text-foreground">
+                Recent Orders
+              </h3>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setShowPurchaseHistory(!showPurchaseHistory)}
               >
-                {showPurchaseHistory ? 'Hide' : 'Show'} History
+                {showPurchaseHistory ? "Hide" : "Show"} History
               </Button>
             </div>
-            
+
             {showPurchaseHistory && (
               <div className="overflow-x-auto rounded-lg border border-border">
                 <table className="min-w-full text-xs">
