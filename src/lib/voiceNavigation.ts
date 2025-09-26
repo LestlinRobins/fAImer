@@ -1,5 +1,8 @@
-// Voice navigation utilities using Gemini for robust intent parsing
-// Also includes an offline fallback matcher when API is unavailable
+// Voice navigation utilities using OFFLINE LLM for robust intent parsing
+// Uses Transformers.js for lightweight, browser-native AI inference
+// Includes keyword fallback for maximum reliability
+
+import { pipeline } from "@xenova/transformers";
 
 export type VoiceDecision = {
   action: "navigate" | "chat" | "weather" | "popup" | "tab";
@@ -865,7 +868,81 @@ export const FEATURE_KB: Array<{
   },
 ];
 
-const MODEL_NAME = "gemma-3n-e2b-it";
+// Offline LLM setup using Transformers.js
+let offlineLLM: any = null;
+let isLLMLoading = false;
+let llmLoadPromise: Promise<any> | null = null;
+
+// Initialize the offline LLM (lightweight text generation model)
+export async function initOfflineLLM(): Promise<boolean> {
+  if (offlineLLM) {
+    console.log("✅ Offline LLM already initialized");
+    return true;
+  }
+
+  if (isLLMLoading) {
+    console.log("⏳ LLM already loading, waiting...");
+    try {
+      await llmLoadPromise;
+      return offlineLLM !== null;
+    } catch (error) {
+      console.error("❌ Failed to wait for LLM loading:", error);
+      return false;
+    }
+  }
+
+  isLLMLoading = true;
+  console.log("🤖 Initializing offline LLM for voice navigation...");
+
+  llmLoadPromise = (async () => {
+    try {
+      // Use a lightweight text generation model that works well for structured output
+      offlineLLM = await pipeline(
+        "text-generation",
+        "Xenova/LaMini-Flan-T5-248M" // Lightweight, multilingual, good for instruction following
+      );
+      console.log("✅ Offline LLM initialized successfully!");
+      return offlineLLM;
+    } catch (error) {
+      console.warn("❌ Failed to initialize offline LLM:", error);
+      console.log("🔄 Trying alternative model...");
+
+      try {
+        // Fallback to an even smaller model if the first one fails
+        offlineLLM = await pipeline("text-generation", "Xenova/distilgpt2");
+        console.log("✅ Offline LLM initialized with fallback model!");
+        return offlineLLM;
+      } catch (cpuError) {
+        console.error("❌ Failed to initialize LLM even on CPU:", cpuError);
+        offlineLLM = null;
+        return null;
+      }
+    }
+  })();
+
+  try {
+    await llmLoadPromise;
+    isLLMLoading = false;
+    return offlineLLM !== null;
+  } catch (error) {
+    isLLMLoading = false;
+    console.error("❌ LLM initialization failed:", error);
+    return false;
+  }
+}
+
+// Check if offline LLM is ready
+export function isOfflineLLMReady(): boolean {
+  return offlineLLM !== null && !isLLMLoading;
+}
+
+// Get LLM loading status for UI
+export function getOfflineLLMStatus(): { ready: boolean; loading: boolean } {
+  return {
+    ready: offlineLLM !== null,
+    loading: isLLMLoading,
+  };
+}
 
 function buildPrompt(userQuery: string, language?: string) {
   const kbJson = JSON.stringify(FEATURE_KB, null, 2);
@@ -1039,72 +1116,89 @@ function validateAndSanitizeDecision(parsed: any): VoiceDecision | null {
   return decision;
 }
 
-async function callGemini(prompt: string): Promise<VoiceDecision | null> {
-  // Try both environment variable and fallback hardcoded key
-  const apiKey =
-    (import.meta as any).env?.VITE_GEMINI_API_KEY ||
-    "AIzaSyB7u7ECKuSiVP2wHzoi-Ic9haOi2U2dK6Q";
-  if (!apiKey) {
-    console.warn("🚨 No Gemini API key found");
+async function callOfflineLLM(prompt: string): Promise<VoiceDecision | null> {
+  if (!isOfflineLLMReady()) {
+    console.warn("🚨 Offline LLM not ready");
     return null;
   }
 
-  console.log("🤖 Calling Gemini API for voice navigation...");
+  console.log("🤖 Using offline LLM for voice navigation...");
 
   try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-goog-api-key": apiKey,
-        },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-        }),
-      }
-    );
+    // Create a more structured prompt for the lightweight model
+    const structuredPrompt = `Task: Parse user voice input for agricultural app navigation.
 
-    if (!res.ok) {
-      console.error(`❌ Gemini API error ${res.status}:`, await res.text());
-      throw new Error(`Gemini API error ${res.status}`);
+Input: "${prompt.split("User said: ")[1]?.split("\n")[0] || prompt}"
+
+Available features: ${KNOWN_FEATURE_IDS.join(", ")}
+
+Response format (JSON only):
+{
+  "action": "navigate",
+  "targetId": "feature_name",
+  "subAction": "optional_sub_feature",
+  "confidence": 0.8,
+  "reason": "explanation"
+}
+
+JSON:`;
+
+    const response = await offlineLLM(structuredPrompt, {
+      max_new_tokens: 150,
+      temperature: 0.1,
+      do_sample: false,
+      return_full_text: false,
+    });
+
+    let text = "";
+    if (Array.isArray(response) && response.length > 0) {
+      text = response[0].generated_text || "";
+    } else if (response.generated_text) {
+      text = response.generated_text;
+    } else {
+      text = String(response);
     }
 
-    const data = await res.json();
-    const text: string = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
-    console.log("✅ Gemini raw response:", text);
+    console.log("✅ Offline LLM raw response:", text);
 
-    const parsed = safeParseJson(text);
+    // Try to extract JSON from the response
+    let jsonText = text;
+    const jsonStart = text.indexOf("{");
+    const jsonEnd = text.lastIndexOf("}");
+    if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
+      jsonText = text.substring(jsonStart, jsonEnd + 1);
+    }
+
+    const parsed = safeParseJson(jsonText);
     if (!parsed) {
-      console.warn("❌ Failed to parse Gemini JSON response:", text);
+      console.warn("❌ Failed to parse offline LLM JSON response:", text);
       return null;
     }
 
-    console.log("🎯 Gemini raw parsed response:", parsed);
+    console.log("🎯 Offline LLM parsed response:", parsed);
 
     // Validate and sanitize the decision
     const decision = validateAndSanitizeDecision(parsed);
     if (!decision) {
-      console.warn("❌ Failed to validate Gemini decision:", parsed);
+      console.warn("❌ Failed to validate offline LLM decision:", parsed);
       return null;
     }
 
-    console.log("🚀 Final validated Gemini decision:", decision);
+    console.log("🚀 Final validated offline LLM decision:", decision);
     return decision;
   } catch (err) {
-    console.warn("❌ Gemini call failed:", err);
+    console.warn("❌ Offline LLM call failed:", err);
     return null;
   }
 }
 
-// Offline fallback using simple keyword matching in multiple languages
-// Enhanced with sub-action detection
+// Keyword fallback using simple keyword matching in multiple languages
+// Enhanced with sub-action detection - used when LLM fails
 export function offlineMatch(
   queryRaw: string,
   language?: string
 ): VoiceDecision {
-  console.log(`🔍 Offline matching: "${queryRaw}" (language: ${language})`);
+  console.log(`🔍 Keyword matching: "${queryRaw}" (language: ${language})`);
 
   const q = queryRaw.toLowerCase();
 
@@ -1519,7 +1613,7 @@ export function offlineMatch(
         confidence: 0.6,
         queryNormalized: q,
       };
-      console.log(`✅ Offline match found for "${queryRaw}":`, result);
+      console.log(`✅ Keyword match found for "${queryRaw}":`, result);
       return result;
     }
   }
@@ -1531,7 +1625,7 @@ export function offlineMatch(
     queryNormalized: q,
   };
   console.log(
-    `⚠️ No offline match found for "${queryRaw}", defaulting to chat:`,
+    `⚠️ No keyword match found for "${queryRaw}", defaulting to chat:`,
     fallbackResult
   );
   return fallbackResult;
@@ -1547,13 +1641,14 @@ export async function routeFromTranscript(
 
   const prompt = buildPrompt(transcript, language);
   console.log(
-    "📝 Built prompt for Gemini (first 200 chars):",
+    "📝 Built prompt for offline LLM (first 200 chars):",
     prompt.substring(0, 200) + "..."
   );
 
-  const ai = await callGemini(prompt);
+  // Primary: Try offline LLM for intelligent understanding
+  const ai = await callOfflineLLM(prompt);
   if (ai) {
-    console.log("✅ Gemini provided decision:", ai);
+    console.log("✅ Offline LLM provided decision:", ai);
 
     // Enhanced handling for different action types
     if (ai.action === "weather") {
@@ -1590,7 +1685,7 @@ export async function routeFromTranscript(
       !KNOWN_FEATURE_IDS.includes(ai.targetId as any)
     ) {
       console.warn(
-        `⚠️ Unknown targetId: ${ai.targetId}, falling back to offline match`
+        `⚠️ Unknown targetId: ${ai.targetId}, falling back to keyword match`
       );
       const off = offlineMatch(transcript, language);
       return off;
@@ -1599,15 +1694,15 @@ export async function routeFromTranscript(
     // If AI says navigate but target is null, fallback
     if (ai.action === "navigate" && !ai.targetId) {
       console.log(
-        "⚠️ Gemini said navigate but no targetId, using offline fallback"
+        "⚠️ LLM said navigate but no targetId, using keyword fallback"
       );
       const off = offlineMatch(transcript, language);
-      console.log("🔄 Offline fallback result:", off);
+      console.log("🔄 Keyword fallback result:", off);
 
-      // Handle weather in offline fallback too
+      // Handle weather in keyword fallback too
       if (off.action === "navigate" && off.targetId === "weather") {
         console.log(
-          "🌤️ Converting offline weather navigation to weather action"
+          "🌤️ Converting keyword weather navigation to weather action"
         );
         return {
           action: "weather",
@@ -1626,13 +1721,13 @@ export async function routeFromTranscript(
     return ai;
   }
 
-  console.log("❌ Gemini failed, using offline fallback");
+  console.log("❌ Offline LLM failed, using keyword fallback");
   const offline = offlineMatch(transcript, language);
-  console.log("🔄 Offline fallback result:", offline);
+  console.log("🔄 Keyword fallback result:", offline);
 
-  // Handle weather in offline fallback
+  // Handle weather in keyword fallback
   if (offline.action === "navigate" && offline.targetId === "weather") {
-    console.log("🌤️ Converting offline weather navigation to weather action");
+    console.log("🌤️ Converting keyword weather navigation to weather action");
     return {
       action: "weather",
       targetId: null,
