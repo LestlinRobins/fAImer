@@ -53,12 +53,13 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack }) => {
 
   // Keep selectedLanguage in sync with currentLanguage
   useEffect(() => {
-    const lang = languages.find((l) => l.code === currentLanguage) || languages[0];
+    const lang =
+      languages.find((l) => l.code === currentLanguage) || languages[0];
     setSelectedLanguage(lang);
   }, [currentLanguage]);
 
   // Handle language selection
-  const handleLanguageSelect = (language: typeof languages[0]) => {
+  const handleLanguageSelect = (language: (typeof languages)[0]) => {
     setSelectedLanguage(language);
     setLanguage(language.code);
     console.log("Language changed to:", language.name, language.code);
@@ -288,7 +289,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack }) => {
         <div className="space-y-2">
           {menuItems.map((item) => {
             const Icon = item.icon;
-            
+
             // Special handling for language settings
             if (item.id === "language") {
               return (
@@ -318,7 +319,9 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack }) => {
                             size="sm"
                             className="flex items-center gap-2 min-w-[120px] justify-between"
                           >
-                            <span className="text-sm">{selectedLanguage.native}</span>
+                            <span className="text-sm">
+                              {selectedLanguage.native}
+                            </span>
                             <ChevronDown className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
@@ -328,8 +331,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack }) => {
                               key={language.code}
                               onClick={() => handleLanguageSelect(language)}
                               className={`flex justify-between items-center cursor-pointer ${
-                                selectedLanguage.code === language.code 
-                                  ? "bg-primary/10 text-primary" 
+                                selectedLanguage.code === language.code
+                                  ? "bg-primary/10 text-primary"
                                   : "hover:bg-accent"
                               }`}
                             >
@@ -346,7 +349,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack }) => {
                 </Card>
               );
             }
-            
+
             // Default menu item rendering
             return (
               <Card

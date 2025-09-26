@@ -33,6 +33,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { useTranslation } from "@/contexts/TranslationContext";
 
 interface CropRecommendation {
   id: string;
@@ -69,10 +70,10 @@ interface LocationData {
 
 interface CropWiseProps {
   onBack?: () => void;
-  language?: string;
 }
 
-const CropWise: React.FC<CropWiseProps> = ({ onBack, language = "en" }) => {
+const CropWise: React.FC<CropWiseProps> = ({ onBack }) => {
+  const { currentLanguage, t } = useTranslation();
   const [searchTerm, setSearchTerm] = useState("");
   const [filterCategory, setFilterCategory] = useState("all");
   const [filterSeason, setFilterSeason] = useState("all");
@@ -87,7 +88,7 @@ const CropWise: React.FC<CropWiseProps> = ({ onBack, language = "en" }) => {
   const { toast } = useToast();
 
   const getTranslatedText = (englishText: string) => {
-    if (language !== "ml") return englishText;
+    if (currentLanguage !== "ml") return englishText;
     const translations: { [key: string]: string } = {
       "CropWise Recommendations": "വിള ശുപാർശകൾ",
       "Smart crop recommendations for your region":

@@ -22,6 +22,7 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
+import { useTranslation } from "@/contexts/TranslationContext";
 import { routeFromTranscript } from "@/lib/voiceNavigation";
 import { useAuth } from "@/contexts/AuthContext";
 // Crop Wise icon now served from public uploads
@@ -30,7 +31,6 @@ import { useAuth } from "@/contexts/AuthContext";
 interface HomeScreenProps {
   onFeatureClick: (featureId: string) => void;
   onVoiceChat?: (question: string) => void; // open chatbot with initial question
-  language?: string;
 }
 
 interface WeatherData {
@@ -52,10 +52,92 @@ interface LocationData {
 const HomeScreen: React.FC<HomeScreenProps> = ({
   onFeatureClick,
   onVoiceChat,
-  language = "en",
 }) => {
-  const { user, profile } = useAuth();
+  const { firebaseUser } = useAuth();
   const { toast } = useToast();
+  const { currentLanguage, t } = useTranslation();
+
+  // Language to speech recognition locale mapping
+  const getLanguageLocale = (langCode: string): string => {
+    const localeMap: { [key: string]: string } = {
+      en: "en-IN", // English (India)
+      hi: "hi-IN", // Hindi (India)
+      ml: "ml-IN", // Malayalam (India)
+      kn: "kn-IN", // Kannada (India)
+      ta: "ta-IN", // Tamil (India)
+      te: "te-IN", // Telugu (India)
+      mr: "mr-IN", // Marathi (India)
+      bn: "bn-IN", // Bengali (India)
+    };
+    return localeMap[langCode] || "en-IN"; // fallback to English
+  };
+
+  // Get localized text for voice features
+  const getVoiceText = (key: string): string => {
+    const voiceTexts: { [key: string]: { [lang: string]: string } } = {
+      voiceNotAvailable: {
+        en: "Voice not available",
+        hi: "आवाज उपलब्ध नहीं है",
+        ml: "വോയ്സ് ലഭ്യമല്ല",
+        kn: "ಧ್ವನಿ ಲಭ್ಯವಿಲ್ಲ",
+        ta: "குரல் கிடைக்கவில்லை",
+        te: "వాయిస్ అందుబాటులో లేదు",
+        mr: "आवाज उपलब्ध नाही",
+        bn: "ভয়েস পাওয়া যাচ্ছে না",
+      },
+      micNotSupported: {
+        en: "Microphone support is not available in this browser.",
+        hi: "इस ब्राउज़र में माइक्रोफ़ोन समर्थन उपलब्ध नहीं है।",
+        ml: "ഈ ബ്രൗസറിൽ മൈക്ക് പിന്തുണയില്ല।",
+        kn: "ಈ ಬ್ರೌಸರ್‌ನಲ್ಲಿ ಮೈಕ್ರೊಫೋನ್ ಬೆಂಬಲ ಲಭ್ಯವಿಲ್ಲ।",
+        ta: "இந்த உலாவியில் ஒலிவாங்கி ஆதரவு இல்லை।",
+        te: "ఈ బ్రౌజర్‌లో మైక్రోఫోన్ మద్దతు లేదు।",
+        mr: "या ब्राउझरमध्ये मायक्रोफोन समर्थन उपलब्ध नाही।",
+        bn: "এই ব্রাউজারে মাইক্রোফোন সাপোর্ট পাওয়া যায় না।",
+      },
+      processing: {
+        en: "Processing",
+        hi: "प्रोसेसिंग",
+        ml: "കേട്ടത്",
+        kn: "ಪ್ರಕ್ರಿಯೆ",
+        ta: "செயலாக்கம்",
+        te: "ప్రాసెసింగ్",
+        mr: "प्रक्रिया",
+        bn: "প্রক্রিয়াকরণ",
+      },
+      navigating: {
+        en: "Navigating",
+        hi: "नेवीगेट कर रहे हैं",
+        ml: "പോകുന്നു",
+        kn: "ನ್ಯಾವಿಗೇಟ್ ಮಾಡಲಾಗುತ್ತಿದೆ",
+        ta: "வழிசெய்கிறது",
+        te: "నావిగేట్ చేస్తోంది",
+        mr: "नेव्हिगेट करत आहे",
+        bn: "নেভিগেট করছে",
+      },
+      error: {
+        en: "Error",
+        hi: "त्रुटि",
+        ml: "പിശക്",
+        kn: "ದೋಷ",
+        ta: "பிழை",
+        te: "లోపం",
+        mr: "त्रुटी",
+        bn: "ত্রুটি",
+      },
+      processingFailed: {
+        en: "Failed to process voice command",
+        hi: "आवाज कमांड प्रोसेस करने में विफल",
+        ml: "ശബ്ദ കമാൻഡ് പ്രോസസ്സ് ചെയ്യാൻ പരാജയപ്പെട്ടു",
+        kn: "ಧ್ವನಿ ಆಜ್ಞೆಯನ್ನು ಪ್ರಕ್ರಿಯೆಗೊಳಿಸಲು ವಿಫಲವಾಗಿದೆ",
+        ta: "குரல் கட்டளையை செயலாக்க முடியவில்லை",
+        te: "వాయిస్ కమాండ్‌ను ప్రాసెస్ చేయడంలో విఫలమైంది",
+        mr: "व्हॉइस कमांड प्रक्रिया करण्यात अयशस्वी",
+        bn: "ভয়েস কমান্ড প্রক্রিয়াকরণে ব্যর্থ",
+      },
+    };
+    return voiceTexts[key]?.[currentLanguage] || voiceTexts[key]?.["en"] || "";
+  };
 
   // State for dynamic data
   const [locationData, setLocationData] = useState<LocationData | null>(null);
@@ -64,9 +146,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   const [loadingWeather, setLoadingWeather] = useState(true);
 
   const userName =
-    profile?.full_name ||
-    user?.email?.split("@")[0] ||
-    (language === "ml" ? "രമേശ്" : "User");
+    firebaseUser?.displayName ||
+    firebaseUser?.email?.split("@")[0] ||
+    (currentLanguage === "ml" ? "രമേശ്" : "User");
 
   // Function to get user's current location
   const getCurrentLocation = (): Promise<GeolocationPosition> => {
@@ -428,19 +510,19 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
 
         // Different error messages based on error type
         let errorMessage = "Unable to get your current location";
-        if (language === "ml") {
+        if (currentLanguage === "ml") {
           errorMessage = "നിങ്ങളുടെ സ്ഥാനം കണ്ടെത്താൻ കഴിഞ്ഞില്ല";
         }
 
         if (error instanceof Error) {
           if (error.message.includes("permission")) {
             errorMessage =
-              language === "ml"
+              currentLanguage === "ml"
                 ? "ലൊക്കേഷൻ അനുമതി ആവശ്യമാണ്"
                 : "Location permission required";
           } else if (error.message.includes("timeout")) {
             errorMessage =
-              language === "ml"
+              currentLanguage === "ml"
                 ? "സ്ഥാനം കണ്ടെത്താൻ സമയമെടുത്തു"
                 : "Location request timed out";
           }
@@ -452,9 +534,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
     };
 
     loadLocationAndWeather();
-  }, [language]);
+  }, [currentLanguage]);
   const getTranslatedText = (englishText: string) => {
-    if (language !== "ml") return englishText;
+    if (currentLanguage !== "ml") return englishText;
     const translations: {
       [key: string]: string;
     } = {
@@ -570,13 +652,13 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   const quickActions = [
     {
       id: "spraying",
-      label: language === "ml" ? "സ്പ്രേയിംഗ്" : "Crop Wise",
+      label: currentLanguage === "ml" ? "സ്പ്രേയിംഗ്" : "Crop Wise",
       icon: SprayCan,
       image: "/lovable-uploads/f46a346c-43fa-4c4a-ac6d-c1652fe31702.png",
     },
     {
       id: "mapping",
-      label: language === "ml" ? "മാപ്പിംഗ്" : "Fair Farm",
+      label: currentLanguage === "ml" ? "മാപ്പിംഗ്" : "Fair Farm",
       icon: Map,
       image: "/lovable-uploads/33d82a5a-6adb-4fb2-a720-33afcbfb4f47.png",
     },
@@ -586,32 +668,34 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   const featureContent = [
     {
       id: "fc1",
-      title: language === "ml" ? "കൊടുങ്കാറ്റ് മുന്നറിയിപ്പ്" : "Storm Alert",
+      title:
+        currentLanguage === "ml" ? "കൊടുങ്കാറ്റ് മുന്നറിയിപ്പ്" : "Storm Alert",
       image: "/assets/weather-storm-alert.jpg",
     },
     {
       id: "fc2",
-      title: language === "ml" ? "വരൾച്ച മുന്നറിയിപ്പ്" : "Drought Warning",
+      title:
+        currentLanguage === "ml" ? "വരൾച്ച മുന്നറിയിപ്പ്" : "Drought Warning",
       image: "/assets/weather-drought-alert.jpg",
     },
     {
       id: "fc3",
-      title: language === "ml" ? "വിള രോഗം" : "Crop Disease",
+      title: currentLanguage === "ml" ? "വിള രോഗം" : "Crop Disease",
       image: "/assets/crop-disease.jpg",
     },
     {
       id: "fc4",
-      title: language === "ml" ? "വിപണി വിലകൾ" : "Market Update",
+      title: currentLanguage === "ml" ? "വിപണി വിലകൾ" : "Market Update",
       image: "/assets/market-update.jpg",
     },
     {
       id: "fc5",
-      title: language === "ml" ? "ജലസേചന ടിപ്പുകൾ" : "Irrigation Tips",
+      title: currentLanguage === "ml" ? "ജലസേചന ടിപ്പുകൾ" : "Irrigation Tips",
       image: "/assets/irrigation-tips.jpg",
     },
     {
       id: "fc6",
-      title: language === "ml" ? "കീട നിയന്ത്രണം" : "Pest Control",
+      title: currentLanguage === "ml" ? "കീട നിയന്ത്രണം" : "Pest Control",
       image: "/assets/pest-control.jpg",
     },
   ];
@@ -619,8 +703,10 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   // Basic SEO for this screen
   useEffect(() => {
     document.title =
-      language === "ml" ? "ഹോം | കാർഷിക ഡാഷ്ബോർഡ്" : "Home | Farm Dashboard";
-  }, [language]);
+      currentLanguage === "ml"
+        ? "ഹോം | കാർഷിക ഡാഷ്ബോർഡ്"
+        : "Home | Farm Dashboard";
+  }, [currentLanguage]);
 
   // Voice recognition state
   const [listening, setListening] = useState(false);
@@ -633,10 +719,13 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
       (window as any).webkitSpeechRecognition;
     if (!SR) return null;
     const r: any = new SR();
-    r.lang = language === "ml" ? "ml-IN" : "en-IN";
+    r.lang = getLanguageLocale(currentLanguage);
     r.interimResults = true; // Enable interim results to show live speech
     r.maxAlternatives = 1;
     r.continuous = false;
+    console.log(
+      `🎤 Speech recognition configured for language: ${currentLanguage} (${r.lang})`
+    );
     return r;
   };
   const handleMicClick = () => {
@@ -652,11 +741,8 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
     const rec = ensureRecognition();
     if (!rec) {
       toast({
-        title: language === "ml" ? "വോയ്സ് ലഭ്യമല്ല" : "Voice not available",
-        description:
-          language === "ml"
-            ? "ഈ ബ്രൗസറിൽ മൈക്ക് പിന്തുണയില്ല."
-            : "Microphone support is not available in this browser.",
+        title: getVoiceText("voiceNotAvailable"),
+        description: getVoiceText("micNotSupported"),
       });
       return;
     }
@@ -683,16 +769,19 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
         setInterimText("");
         setIsProcessing(true);
         toast({
-          title: language === "ml" ? "കേട്ടത്" : "Processing",
+          title: getVoiceText("processing"),
           description: `"${finalTranscript}"`,
         });
         try {
-          // Route via Gemini / fallback
-          const decision = await routeFromTranscript(finalTranscript);
+          // Route via Gemini / fallback with language context
+          const decision = await routeFromTranscript(
+            finalTranscript,
+            currentLanguage
+          );
           if (decision.action === "navigate" && decision.targetId) {
             onFeatureClick(decision.targetId);
             toast({
-              title: language === "ml" ? "പോകുന്നു" : "Navigating",
+              title: getVoiceText("navigating"),
               description: `${decision.targetId} • ${(decision.confidence * 100).toFixed(0)}%`,
             });
           } else {
@@ -706,8 +795,8 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
         } catch (error) {
           console.error("Voice routing error:", error);
           toast({
-            title: "Error",
-            description: "Failed to process voice command",
+            title: getVoiceText("error"),
+            description: getVoiceText("processingFailed"),
           });
         } finally {
           setIsProcessing(false);
@@ -720,9 +809,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
       setInterimText("");
       setIsProcessing(false);
       toast({
-        title: language === "ml" ? "പിശക്" : "Error",
+        title: currentLanguage === "ml" ? "പിശക്" : "Error",
         description:
-          language === "ml"
+          currentLanguage === "ml"
             ? "വോയ്സ് തിരിച്ചറിയാൻ കഴിഞ്ഞില്ല"
             : "Voice recognition failed. Please try again.",
       });
@@ -758,18 +847,18 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
         <div className="absolute inset-0 bg-background/40"></div>
         <div className="relative z-10 p-6 h-full flex flex-col justify-center">
           <h1 className="text-foreground text-xl sm:text-2xl font-bold mb-2 mt-12">
-            {language === "ml" ? "ഹായ്" : "Hi"} {userName}
+            {currentLanguage === "ml" ? "ഹായ്" : "Hi"} {userName}
           </h1>
           <div className="flex items-center gap-2 text-muted-foreground text-sm">
             <MapPin className="h-4 w-4" />
             <span>
               {loadingLocation
-                ? language === "ml"
+                ? currentLanguage === "ml"
                   ? "സ്ഥാനം ലോഡ് ചെയ്യുന്നു..."
                   : "Loading location..."
                 : locationData
                   ? `${locationData.city}${locationData.state ? `, ${locationData.state}` : ""}${locationData.country ? `, ${locationData.country}` : ""}`
-                  : language === "ml"
+                  : currentLanguage === "ml"
                     ? "സ്ഥാനം ലഭ്യമല്ല"
                     : "Location unavailable"}
             </span>
@@ -787,7 +876,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
             </div>
             <div className="text-muted-foreground text-sm">
               {loadingWeather
-                ? language === "ml"
+                ? currentLanguage === "ml"
                   ? "കാലാവസ്ഥ ലോഡ് ചെയ്യുന്നു..."
                   : "Loading weather..."
                 : weatherData
@@ -799,7 +888,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
         <img
           src="/lovable-uploads/60f927d7-a6b0-4944-bf34-9a7a5394d552.png"
           alt={
-            language === "ml" ? "കാലാവസ്ഥ ഐകൺ" : "Weather icon - partly cloudy"
+            currentLanguage === "ml"
+              ? "കാലാവസ്ഥ ഐകൺ"
+              : "Weather icon - partly cloudy"
           }
           className="absolute bottom-2 right-2 z-10 w-24 h-24 object-contain-center"
           loading="eager"
@@ -815,14 +906,14 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
         disabled={isProcessing}
         title={
           listening
-            ? language === "ml"
+            ? currentLanguage === "ml"
               ? "കേൾക്കുന്നു…"
               : "Listening…"
             : isProcessing
-              ? language === "ml"
+              ? currentLanguage === "ml"
                 ? "പ്രോസസ്സിംഗ്..."
                 : "Processing..."
-              : language === "ml"
+              : currentLanguage === "ml"
                 ? "വോയ്സ് അസിസ്റ്റന്റ്"
                 : "Voice assistant"
         }
@@ -836,11 +927,11 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
       {(listening || interimText) && (
         <div className="fixed top-20 right-4 z-20 bg-background/90 backdrop-blur-sm border border-border rounded-lg p-3 max-w-xs shadow-lg">
           <div className="text-xs text-muted-foreground mb-1">
-            {language === "ml" ? "കേൾക്കുന്നു..." : "Listening..."}
+            {currentLanguage === "ml" ? "കേൾക്കുന്നു..." : "Listening..."}
           </div>
           <div className="text-sm text-foreground font-medium">
             {interimText ||
-              (language === "ml" ? "സംസാരിക്കുക..." : "Speak now...")}
+              (currentLanguage === "ml" ? "സംസാരിക്കുക..." : "Speak now...")}
           </div>
         </div>
       )}
@@ -865,7 +956,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
                       toast({
                         title: action.label,
                         description:
-                          language === "ml"
+                          currentLanguage === "ml"
                             ? "പ്ലേസ്‌ഹോൾഡർ - നിങ്ങൾ പിന്നീട് പുതുക്കാം"
                             : "Placeholder - you can update later",
                       });
@@ -898,7 +989,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
         <div>
           <div className="flex items-center justify-between mb-3">
             <h2 className="hidden md:block text-lg font-semibold text-foreground">
-              {language === "ml" ? "ഫീച്ചർ കണ്ടന്റ്" : "Feature Content"}
+              {currentLanguage === "ml" ? "ഫീച്ചർ കണ്ടന്റ്" : "Feature Content"}
             </h2>
           </div>
           <div className="space-y-2">

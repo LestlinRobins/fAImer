@@ -640,26 +640,40 @@ export const FEATURE_KB: Array<{
 
 const MODEL_NAME = "gemini-2.0-flash";
 
-function buildPrompt(userQuery: string) {
+function buildPrompt(userQuery: string, language?: string) {
   const kbJson = JSON.stringify(FEATURE_KB, null, 2);
+  const languageContext = language
+    ? `\nUSER'S SELECTED LANGUAGE: ${language} - Give extra attention to queries in this language.\n`
+    : "";
+
   return `You are an expert intent router for a farmer mobile web app. Your job is to understand natural conversational speech and map it to the correct app functionality.
 
-Knowledge base of app sections (JSON):\n${kbJson}\n\n
+Knowledge base of app sections (JSON):\n${kbJson}\n\n${languageContext}
 
 CRITICAL INSTRUCTIONS:
 - Understand NATURAL CONVERSATIONAL SPEECH, not just keywords
-- The app supports both English and Malayalam. Many users will speak naturally about their farming problems.
+- The app supports multiple Indian languages: English, Hindi (हिंदी), Malayalam (മലയാളം), Kannada (ಕನ್ನಡ), Tamil (தமிழ்), Telugu (తెలుగు), Marathi (मराठी), Bengali (বাংলা)
 - CONTEXT AWARENESS: Understand the underlying need/intent behind what the user is saying
+- Pay special attention to the user's selected language: ${language || "not specified"}
 
 NATURAL LANGUAGE EXAMPLES:
 ❌ Don't just match keywords → ✅ Understand the real intent:
 
+English:
 "My tomato plant leaf has something on it, what should I do?" → INTENT: Plant disease diagnosis → targetId: "diagnose"
 "How much did I spend on fertilizer this month?" → INTENT: Check expenses → targetId: "expense"  
 "Are the prices good for selling rice today?" → INTENT: Check market prices → targetId: "market"
 "It's been raining a lot, will it continue?" → INTENT: Weather forecast → targetId: "weather"
+
+Malayalam:
 "എന്റെ പയറിന് വെള്ളക്കാശു വന്നിട്ടുണ്ട്" → INTENT: Plant disease → targetId: "diagnose"
 "ഇന്ന് വീട്ടിൽ പച്ചക്കറി വിറ്റാൽ നല്ല വിലകിട്ടുമോ?" → INTENT: Market prices → targetId: "market"
+"ഇന്നത്തെ കാലാവസ്ഥ എങ്ങനെയാണ്?" → INTENT: Weather → targetId: "weather"
+
+Hindi:
+"मेरे टमाटर के पत्तों पर धब्बे हैं" → INTENT: Plant disease → targetId: "diagnose"
+"आज चावल का भाव क्या है?" → INTENT: Market prices → targetId: "market"
+"इस महीने खाद पर कितना खर्च हुआ?" → INTENT: Expenses → targetId: "expense"
 
 CONTEXT PATTERNS TO RECOGNIZE:
 - Plant problems/symptoms/diseases → "diagnose"
@@ -760,7 +774,10 @@ async function callGemini(prompt: string): Promise<VoiceDecision | null> {
 }
 
 // Offline fallback using simple keyword matching in multiple languages
-export function offlineMatch(queryRaw: string): VoiceDecision {
+export function offlineMatch(
+  queryRaw: string,
+  language?: string
+): VoiceDecision {
   const q = queryRaw.toLowerCase();
   const map: Array<{ keys: string[]; target: FeatureId }> = [
     {
@@ -1028,17 +1045,18 @@ export function offlineMatch(queryRaw: string): VoiceDecision {
 }
 
 export async function routeFromTranscript(
-  transcript: string
+  transcript: string,
+  language?: string
 ): Promise<VoiceDecision> {
-  const prompt = buildPrompt(transcript);
+  const prompt = buildPrompt(transcript, language);
   const ai = await callGemini(prompt);
   if (ai) {
     // If AI says navigate but target is null, fallback
     if (ai.action === "navigate" && !ai.targetId) {
-      const off = offlineMatch(transcript);
+      const off = offlineMatch(transcript, language);
       return off;
     }
     return ai;
   }
-  return offlineMatch(transcript);
+  return offlineMatch(transcript, language);
 }

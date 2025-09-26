@@ -50,7 +50,6 @@ const Index = () => {
               setInitialChatQuestion(q);
               setActiveTab("chatbot");
             }}
-            language={selectedLanguage}
           />
         );
       case "twin":
@@ -112,19 +111,9 @@ const Index = () => {
       case "fairfarm":
         return <FairFarm onBack={() => setActiveTab("home")} />;
       case "cropwise":
-        return (
-          <CropWise
-            onBack={() => setActiveTab("home")}
-            language={selectedLanguage}
-          />
-        );
+        return <CropWise onBack={() => setActiveTab("home")} />;
       default:
-        return (
-          <HomeScreen
-            onFeatureClick={setActiveTab}
-            language={selectedLanguage}
-          />
-        );
+        return <HomeScreen onFeatureClick={setActiveTab} />;
     }
   };
 
