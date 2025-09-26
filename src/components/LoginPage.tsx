@@ -1,13 +1,5 @@
 import React, { useState, useEffect } from "react";
-import {
-  Phone,
-  Mic,
-  Fingerprint,
-  Mail,
-  Chrome,
-  Eye,
-  EyeOff,
-} from "lucide-react";
+import { Phone, Mic, Fingerprint, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -21,15 +13,7 @@ interface LoginPageProps {
 }
 
 const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onLanguageChange }) => {
-  const [authMode, setAuthMode] = useState<"login" | "signup">("login");
   const [loginType, setLoginType] = useState<"email" | "phone">("email");
-
-  // Email/Password states
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [fullName, setFullName] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
 
   // Phone states
   const [phoneNumber, setPhoneNumber] = useState("");
@@ -40,145 +24,22 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onLanguageChange }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const { signIn, signUp, signInWithGoogle, signInWithGoogleFirebase } =
-    useAuth();
+  const { signInWithGoogleFirebase } = useAuth();
 
-  // Check for email verification parameters
+  // Clear any URL parameters on component mount
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const accessToken = urlParams.get("access_token");
-    const refreshToken = urlParams.get("refresh_token");
-    const type = urlParams.get("type");
-
-    console.log("URL parameters:", {
-      accessToken: !!accessToken,
-      refreshToken: !!refreshToken,
-      type,
-    });
-
-    if (type === "signup" && accessToken) {
-      setError(
-        "Email verified successfully! You can now sign in with your credentials."
-      );
-      // Clear the URL parameters
+    if (window.location.search) {
       window.history.replaceState({}, document.title, window.location.pathname);
     }
   }, []);
-
-  const handleEmailAuth = async () => {
-    if (!email || !password) {
-      setError("Please fill in all fields");
-      return;
-    }
-
-    if (authMode === "signup") {
-      if (password !== confirmPassword) {
-        setError("Passwords don't match");
-        return;
-      }
-      if (!fullName.trim()) {
-        setError("Please enter your full name");
-        return;
-      }
-      if (password.length < 6) {
-        setError("Password must be at least 6 characters");
-        return;
-      }
-    }
-
-    setLoading(true);
-    setError("");
-
-    // Add timeout to prevent infinite loading
-    const timeoutId = setTimeout(() => {
-      setLoading(false);
-      setError("Request timed out. Please try again.");
-    }, 10000); // 10 second timeout
-
-    try {
-      if (authMode === "login") {
-        console.log("Attempting to sign in with:", { email });
-        const { data, error } = await signIn(email, password);
-
-        console.log("Sign in response:", {
-          user: data?.user ? "User found" : "No user",
-          session: data?.session ? "Session found" : "No session",
-          error: error?.message,
-        });
-
-        if (error) {
-          console.error("Sign in error details:", error);
-          // More specific error messages
-          if (error.message.includes("Email not confirmed")) {
-            setError(
-              "Please check your email and click the confirmation link before signing in."
-            );
-          } else if (error.message.includes("Invalid login credentials")) {
-            setError(
-              "Invalid email or password. Make sure your account is confirmed."
-            );
-          } else {
-            setError(error.message);
-          }
-        } else if (data.user) {
-          console.log("Sign in successful, calling onLogin()");
-          onLogin();
-        } else {
-          console.warn("Sign in returned no error but no user either");
-          setError("Sign in failed - no user returned");
-        }
-      } else {
-        const { data, error } = await signUp(email, password, {
-          full_name: fullName,
-        });
-        if (error) {
-          setError(error.message);
-          console.error("Sign up error:", error);
-        } else {
-          console.log("Sign up successful:", data);
-          // Show success message instead of error
-          alert(
-            "Account created successfully! Please check your email and click the confirmation link to activate your account."
-          );
-          setAuthMode("login"); // Switch to login mode
-          setPassword(""); // Clear password fields
-          setConfirmPassword("");
-          setFullName("");
-        }
-      }
-    } catch (err) {
-      console.error("Unexpected error:", err);
-      setError("An unexpected error occurred. Please try again.");
-    } finally {
-      clearTimeout(timeoutId);
-      setLoading(false);
-    }
-  };
 
   const handleGoogleAuth = async () => {
     try {
       setLoading(true);
       setError("");
 
-      // Try Firebase Google authentication first
-      try {
-        const firebaseUser = await signInWithGoogleFirebase();
-        if (firebaseUser) {
-          onLogin();
-          return;
-        }
-      } catch (firebaseError) {
-        console.warn(
-          "Firebase Google auth failed, falling back to Supabase:",
-          firebaseError
-        );
-      }
-
-      // Fallback to Supabase Google authentication
-      const { error } = await signInWithGoogle();
-      if (error) {
-        setError(error.message);
-      } else {
+      const firebaseUser = await signInWithGoogleFirebase();
+      if (firebaseUser) {
         onLogin();
       }
     } catch (err) {
@@ -289,129 +150,29 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onLanguageChange }) => {
 
             {loginType === "email" ? (
               <>
-                {/* Auth Mode Toggle */}
-                <div className="text-center space-x-4">
-                  <Button
-                    variant={authMode === "login" ? "default" : "ghost"}
-                    size="sm"
-                    onClick={() => setAuthMode("login")}
-                  >
-                    Login
-                  </Button>
-                  <Button
-                    variant={authMode === "signup" ? "default" : "ghost"}
-                    size="sm"
-                    onClick={() => setAuthMode("signup")}
-                  >
-                    Sign Up
-                  </Button>
-                </div>
-
-                {/* Email Authentication Form */}
-                <div className="space-y-4">
-                  {authMode === "signup" && (
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Full Name
-                      </label>
-                      <Input
-                        type="text"
-                        placeholder="Enter your full name"
-                        value={fullName}
-                        onChange={(e) => setFullName(e.target.value)}
-                        className="dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                      />
-                    </div>
-                  )}
-
+                {/* Email/Google Authentication */}
+                <div className="text-center space-y-6">
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Email
-                    </label>
-                    <Input
-                      type="email"
-                      placeholder="Enter your email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                    />
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                      Sign in with Google
+                    </h3>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      Use your Google account to access fAImer
+                    </p>
                   </div>
 
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Password
-                    </label>
-                    <div className="relative">
-                      <Input
-                        type={showPassword ? "text" : "password"}
-                        placeholder="Enter your password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        className="dark:bg-gray-700 dark:border-gray-600 dark:text-white pr-10"
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="absolute right-0 top-0 h-full px-3"
-                        onClick={() => setShowPassword(!showPassword)}
-                      >
-                        {showPassword ? (
-                          <EyeOff className="h-4 w-4" />
-                        ) : (
-                          <Eye className="h-4 w-4" />
-                        )}
-                      </Button>
-                    </div>
-                  </div>
-
-                  {authMode === "signup" && (
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Confirm Password
-                      </label>
-                      <Input
-                        type="password"
-                        placeholder="Confirm your password"
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        className="dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                      />
-                    </div>
-                  )}
-
-                  <Button
-                    onClick={handleEmailAuth}
-                    disabled={loading}
-                    className="w-full bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600"
-                  >
-                    {loading
-                      ? "Processing..."
-                      : authMode === "login"
-                        ? "Sign In"
-                        : "Create Account"}
-                  </Button>
+                  {/* Google Authentication */}
+                  <GoogleLogin
+                    onSuccess={() => onLogin()}
+                    onError={(error) =>
+                      setError("Failed to sign in with Google")
+                    }
+                    className="w-full border-red-300 dark:border-red-600 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950"
+                    text="Continue with Google"
+                    variant="outline"
+                    size="lg"
+                  />
                 </div>
-
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t border-gray-300 dark:border-gray-600" />
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-white dark:bg-gray-800 px-2 text-gray-500 dark:text-gray-400">
-                      Or continue with
-                    </span>
-                  </div>
-                </div>
-
-                {/* Google Authentication */}
-                <GoogleLogin
-                  onSuccess={() => onLogin()}
-                  onError={(error) => setError("Failed to sign in with Google")}
-                  className="w-full border-red-300 dark:border-red-600 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950"
-                  text="Sign in with Google"
-                  variant="outline"
-                />
               </>
             ) : (
               // Phone Authentication (existing code)
