@@ -2,8 +2,9 @@
 // Also includes an offline fallback matcher when API is unavailable
 
 export type VoiceDecision = {
-  action: "navigate" | "chat" | "weather";
+  action: "navigate" | "chat" | "weather" | "popup" | "tab";
   targetId: string | null; // one of known feature IDs when action === 'navigate'
+  subAction?: string; // specific tab, popup, or sub-feature to open
   confidence: number; // 0..1
   reason?: string;
   language?: string;
@@ -33,10 +34,34 @@ export const KNOWN_FEATURE_IDS = [
   "fairfarm",
 ] as const;
 
+// Sub-actions for features that have tabs, popups, or specific sections
+export const FEATURE_SUB_ACTIONS = {
+  twin: ["recommendations", "twin", "digital-twin"],
+  weather: ["current", "alerts", "forecast"],
+  resources: [
+    "knowledge",
+    "buy",
+    "scan",
+    "expense",
+    "news",
+    "schemes",
+    "labourers",
+  ],
+  notifications: ["weather", "alerts", "updates"],
+  profile: ["settings", "account", "preferences"],
+  market: ["prices", "trends", "alerts"],
+  planner: ["calendar", "tasks", "schedule"],
+  forum: ["posts", "discussions", "create"],
+  diagnose: ["camera", "upload", "history"],
+  scan: ["pest", "disease", "camera"],
+  buy: ["seeds", "fertilizers", "tools", "pesticides"],
+  expense: ["add", "view", "summary", "reports"],
+} as const;
+
 type FeatureId = (typeof KNOWN_FEATURE_IDS)[number];
 
-// A long knowledge base to help Gemini map natural language to app destinations
-// Keep it JSON so we can embed directly in prompts
+// A comprehensive knowledge base to help Gemini map natural language to app destinations
+// Includes sub-actions for tabs, popups, and specific functionality within features
 export const FEATURE_KB: Array<{
   id: FeatureId | "support" | "spraying" | "mapping" | "seeding";
   title: string;
@@ -44,6 +69,7 @@ export const FEATURE_KB: Array<{
   examples: string[];
   synonyms: string[];
   navigatesTo: FeatureId; // normalized target within app
+  subActions?: string[]; // possible sub-actions/tabs/popups within this feature
   actions?: string[]; // verbs/intents that are possible under this feature
 }> = [
   {
@@ -167,36 +193,61 @@ export const FEATURE_KB: Array<{
   {
     id: "twin",
     title: "Farming Twin",
-    description: "Digital twin of your farm for monitoring and insights.",
+    description:
+      "Digital twin of your farm for monitoring and insights. Has tabs: 'twin' for main dashboard and 'recommendations' for crop recommendations.",
     examples: [
       "open farm twin",
       "digital twin",
       "twin dashboard",
+      "crop recommendations",
+      "show recommendations",
+      "farming suggestions",
       "ഫാം ട്വിൻ തുറക്കുക",
       "ഡിജിറ്റൽ ട്വിൻ",
       "കാർഷിക ട്വിൻ",
+      "recommendations tab",
+      "twin tab",
+      "go to recommendations",
+      "open recommendations",
     ],
     synonyms: [
       "twin",
       "digital farm",
       "simulation",
+      "recommendations",
+      "suggestions",
       "ട്വിൻ",
       "ഡിജിറ്റൽ ഫാം",
       "സിമുലേഷൻ",
+      "ശുപാർശകൾ",
+      "നിർദ്ദേശങ്ങൾ",
     ],
     navigatesTo: "twin",
+    subActions: ["twin", "recommendations"],
+    actions: [
+      "view twin",
+      "get recommendations",
+      "see suggestions",
+      "open dashboard",
+    ],
   },
   {
     id: "weather",
     title: "Weather Alerts",
-    description: "Get weather forecasts and severe alerts.",
+    description:
+      "Get weather forecasts and severe alerts. Can show current weather popup, alerts, or forecasts.",
     examples: [
       "rain tomorrow",
       "weather today",
       "storm alert",
+      "current weather",
+      "weather alerts",
+      "weather forecast",
       "നാളെ മഴ",
       "ഇന്നത്തെ കാലാവസ്ഥ",
       "കൊടുങ്കാറ്റ് അലാറം",
+      "നിലവിലെ കാലാവസ്ഥ",
+      "കാലാവസ്ഥാ അലേർട്ടുകൾ",
     ],
     synonyms: [
       "forecast",
@@ -204,15 +255,20 @@ export const FEATURE_KB: Array<{
       "wind",
       "storm",
       "rain",
+      "weather alerts",
+      "current weather",
       "പ്രവചനം",
       "താപനില",
       "കാറ്റ്",
       "കൊടുങ്കാറ്റ്",
       "മഴ",
       "കാലാവസ്ഥ",
+      "കാലാവസ്ഥാ അലേർട്ടുകൾ",
+      "നിലവിലെ കാലാവസ്ഥ",
     ],
     navigatesTo: "weather",
-    actions: ["set alert", "view forecast"],
+    subActions: ["current", "alerts", "forecast"],
+    actions: ["set alert", "view forecast", "show current weather"],
   },
   {
     id: "forum",
@@ -539,7 +595,8 @@ export const FEATURE_KB: Array<{
   {
     id: "spraying",
     title: "Crop Recommendations (CropWise)",
-    description: "Smart crop recommendations, variety selection, and farming guidance based on location and conditions.",
+    description:
+      "Smart crop recommendations, variety selection, and farming guidance based on location and conditions.",
     examples: [
       "crop recommendations",
       "which crop to plant",
@@ -748,8 +805,9 @@ OUTPUT REQUIREMENTS:
 
 Output JSON schema:
 {
-  "action": "navigate" | "chat",
+  "action": "navigate" | "chat" | "weather" | "popup" | "tab",
   "targetId": "one of ${KNOWN_FEATURE_IDS.join(" | ")} or null",
+  "subAction": "string or null", // specific tab, popup, or functionality within the feature
   "confidence": number between 0 and 1,
   "reason": string explaining your reasoning,
   "language": string, // detected user language code/name (e.g., "malayalam", "english", "mixed")
@@ -772,6 +830,46 @@ function safeParseJson(text: string): any | null {
     }
   }
   return null;
+}
+
+// Enhanced validation and sanitization of voice decisions
+function validateAndSanitizeDecision(parsed: any): VoiceDecision | null {
+  if (!parsed || typeof parsed !== "object") {
+    return null;
+  }
+
+  // Validate action
+  const validActions = ["navigate", "chat", "weather", "popup", "tab"];
+  if (!parsed.action || !validActions.includes(parsed.action)) {
+    console.warn(`⚠️ Invalid action: ${parsed.action}`);
+    return null;
+  }
+
+  // Validate targetId if present
+  if (parsed.targetId && !KNOWN_FEATURE_IDS.includes(parsed.targetId)) {
+    console.warn(`⚠️ Invalid targetId: ${parsed.targetId}`);
+    // Don't return null, just clear the targetId and let it fallback
+    parsed.targetId = null;
+  }
+
+  // Validate confidence
+  const confidence =
+    typeof parsed.confidence === "number"
+      ? Math.max(0, Math.min(1, parsed.confidence))
+      : 0.5;
+
+  // Construct sanitized decision
+  const decision: VoiceDecision = {
+    action: parsed.action,
+    targetId: parsed.targetId || null,
+    subAction: parsed.subAction || undefined,
+    confidence,
+    reason: parsed.reason || undefined,
+    language: parsed.language || undefined,
+    queryNormalized: parsed.queryNormalized || undefined,
+  };
+
+  return decision;
 }
 
 async function callGemini(prompt: string): Promise<VoiceDecision | null> {
@@ -816,24 +914,16 @@ async function callGemini(prompt: string): Promise<VoiceDecision | null> {
       return null;
     }
 
-    console.log("🎯 Gemini parsed decision:", parsed);
+    console.log("🎯 Gemini raw parsed response:", parsed);
 
-    const decision: VoiceDecision = {
-      action: parsed.action === "navigate" ? "navigate" : "chat",
-      targetId:
-        parsed.targetId && KNOWN_FEATURE_IDS.includes(parsed.targetId)
-          ? parsed.targetId
-          : null,
-      confidence:
-        typeof parsed.confidence === "number"
-          ? Math.max(0, Math.min(1, parsed.confidence))
-          : 0.5,
-      reason: parsed.reason,
-      language: parsed.language,
-      queryNormalized: parsed.queryNormalized || undefined,
-    };
+    // Validate and sanitize the decision
+    const decision = validateAndSanitizeDecision(parsed);
+    if (!decision) {
+      console.warn("❌ Failed to validate Gemini decision:", parsed);
+      return null;
+    }
 
-    console.log("🚀 Final Gemini decision:", decision);
+    console.log("🚀 Final validated Gemini decision:", decision);
     return decision;
   } catch (err) {
     console.warn("❌ Gemini call failed:", err);
@@ -842,6 +932,7 @@ async function callGemini(prompt: string): Promise<VoiceDecision | null> {
 }
 
 // Offline fallback using simple keyword matching in multiple languages
+// Enhanced with sub-action detection
 export function offlineMatch(
   queryRaw: string,
   language?: string
@@ -849,329 +940,415 @@ export function offlineMatch(
   console.log(`🔍 Offline matching: "${queryRaw}" (language: ${language})`);
 
   const q = queryRaw.toLowerCase();
-  const map: Array<{ keys: string[]; target: FeatureId }> = [
-    // Profile navigation
-    {
-      keys: [
-        "profile",
-        "my profile",
-        "account",
-        "settings",
-        "പ്രൊഫൈൽ",
-        "പ്രോഫൈൽ",
-        "എന്റെ പ്രൊഫൈൽ",
-        "അക്കൗണ്ട്",
-        "സെറ്റിംഗ്സ്",
-        "प्रोफाइल",
-        "मेरा प्रोफाइल",
-        "खाता",
-      ],
-      target: "profile",
-    },
-    // Home navigation
-    {
-      keys: [
-        "home",
-        "homepage",
-        "dashboard",
-        "main",
-        "ഹോം",
-        "ഹോം പേജ്",
-        "ഡാഷ്ബോർഡ്",
-        "വീട്",
-        "मुख्य",
-        "होम",
-        "डैशबोर्ड",
-      ],
-      target: "home",
-    },
-    // Notifications/Alerts
-    {
-      keys: [
-        "alert",
-        "alerts",
-        "notification",
-        "notifications",
-        "warning",
-        "അലർട്ട്",
-        "അലർട്ടുകൾ",
-        "അറിയിപ്പ്",
-        "അറിയിപ്പുകൾ",
-        "മുന്നറിയിപ്പ്",
-        "मुन्नारियिप्पुकळ्",
-        "अलर्ट",
-        "सूचना",
-        "चेतावनी",
-      ],
-      target: "notifications",
-    },
-    // News
-    {
-      keys: [
-        "news",
-        "agriculture news",
-        "farming news",
-        "വാർത്ത",
-        "വാർത്തകൾ",
-        "ന്യൂസ്",
-        "കാർഷിക വാർത്തകൾ",
-        "समाचार",
-        "न्यूज़",
-        "कृषि समाचार",
-      ],
-      target: "news",
-    },
-    {
-      keys: [
-        "expense",
-        "spend",
-        "spent",
-        "cost",
-        "expenditure",
-        "money",
-        "how much",
-        "ചെലവ്",
-        "ചിലവ്",
-        "പണം",
-        "accounts",
-        "അക്കൗണ്ട്",
-        "ചെലവായത്",
-        "എത്ര ചിലവായി",
-      ],
-      target: "expense",
-    },
-    {
-      keys: [
-        "market",
-        "price",
-        "mandi",
-        "rate",
-        "വില",
-        "വിലകൾ",
-        "മണ്ഡി",
-        "വിപണി",
-      ],
-      target: "market",
-    },
-    {
-      keys: [
-        "weather",
-        "rain",
-        "storm",
-        "കാലാവസ്ഥ",
-        "മഴ",
-        "കൊടുങ്കാറ്റ്",
-        "കാറ്റ്",
-      ],
-      target: "weather",
-    },
-    {
-      keys: [
-        "diagnose",
-        "disease",
-        "doctor",
-        "രോഗ",
-        "identify",
-        "രോഗനിർണയം",
-        "ഡോക്ടർ",
-        "രോഗം",
-        // Natural problem descriptions
-        "something on",
-        "spots on",
-        "yellow leaves",
-        "sick",
-        "problem with",
-        "wrong with",
-        "leaf",
-        "leaves",
-        "plant",
-        "പുള്ളികൾ",
-        "മഞ്ഞ ഇലകൾ",
-        "രോഗിച്ച",
-        "പ്രശ്നം",
-        "ഇലകൾ",
-        "ചെടി",
-      ],
-      target: "diagnose",
-    },
-    {
-      keys: [
-        "scan",
-        "camera",
-        "pest",
-        "insect",
-        "സ്കാൻ",
-        "ക്യാമറ",
-        "കീടങ്ങൾ",
-        "പ്രാണി",
-      ],
-      target: "scan",
-    },
-    {
-      keys: [
-        "plan",
-        "calendar",
-        "sow",
-        "seeding",
-        "വിത്ത്",
-        "ആസൂത്രണം",
-        "കലണ്ടർ",
-        "വിത്തിടൽ",
-        "വിതയൽ",
-      ],
-      target: "planner",
-    },
-    {
-      keys: ["twin", "digital", "ട്വിൻ", "ഡിജിറ്റൽ"],
-      target: "twin",
-    },
-    {
-      keys: [
-        "forum",
-        "community",
-        "group",
-        "ഫോറം",
-        "കമ്യൂണിറ്റി",
-        "ഗ്രൂപ്പ്",
-        "ചർച്ച",
-      ],
-      target: "forum",
-    },
-    {
-      keys: [
-        "knowledge",
-        "guide",
-        "how to",
-        "help",
-        "home remedies",
-        "natural solutions",
-        "soil testing",
-        "organic methods",
-        "diy solutions",
-        "വിജ്ഞാനം",
-        "ഗൈഡ്",
-        "എങ്ങനെ",
-        "സഹായം",
-        "വീട്ടിലെ പരിഹാരം",
-        "പ്രകൃതിദത്ത പരിഹാരം",
-        "മണ്ണ് പരിശോധന",
-        "ജൈവിക രീതികൾ",
-      ],
-      target: "knowledge",
-    },
-    {
-      keys: [
-        "resources",
-        "knowledge center",
-        "learning center",
-        "റിസോഴ്സുകൾ",
-        "വിജ്ഞാന കേന്ദ്രം",
-        "പഠന കേന്ദ്രം",
-      ],
-      target: "resources",
-    },
-    {
-      keys: [
-        "workers",
-        "labour",
-        "laborers",
-        "hire",
-        "employment",
-        "workforce",
-        "find workers",
-        "need workers",
-        "വർക്കർമാർ",
-        "തൊഴിലാളികൾ",
-        "വാടകയ്ക്ക്",
-        "തൊഴിൽ",
-        "ജോലിക്കാർ",
-        "വർക്കർമാരെ കണ്ടെത്തുക",
-      ],
-      target: "labourers",
-    },
-    {
-      keys: [
-        "fair farm",
-        "marketplace",
-        "sell crops",
-        "direct market",
-        "farmer market",
-        "sell direct",
-        "ഫെയർ ഫാം",
-        "മാർക്കറ്റ്പ്ലേസ്",
-        "വിള വിൽപന",
-        "നേരിട്ട് മാർക്കറ്റ്",
-        "കർഷക മാർക്കറ്റ്",
-        "നേരിട്ട് വിൽക്കുക",
-      ],
-      target: "fairfarm",
-    },
-    {
-      keys: [
-        "buy",
-        "shop",
-        "purchase",
-        "order",
-        "വാങ്ങുക",
-        "ഷോപ്പിംഗ്",
-        "ഓർഡർ",
-      ],
-      target: "buy",
-    },
-    {
-      keys: ["news", "update", "headline", "വാർത്തകൾ", "അപ്ഡേറ്റ്", "വാർത്ത"],
-      target: "news",
-    },
-    {
-      keys: [
-        "scheme",
-        "subsidy",
-        "yojana",
-        "സർക്കാർ",
-        "പദ്ധതി",
-        "സബ്സിഡി",
-        "യോജന",
-      ],
-      target: "schemes",
-    },
-    {
-      keys: ["alert", "notification", "അലാറം", "അറിയിപ്പ്"],
-      target: "notifications",
-    },
-    {
-      keys: [
-        "profile",
-        "account",
-        "settings",
-        "പ്രൊഫൈൽ",
-        "അക്കൗണ്ട്",
-        "സെറ്റിംഗുകൾ",
-      ],
-      target: "profile",
-    },
-    {
-      keys: ["home", "dashboard", "main", "ഹോം", "ഡാഷ്ബോർഡ്", "മുഖ്യം"],
-      target: "home",
-    },
-    {
-      keys: [
-        "assistant",
-        "chat",
-        "help",
-        "support",
-        "അസിസ്റ്റന്റ്",
-        "ചാറ്റ്",
-        "സഹായം",
-        "സപ്പോർട്ട്",
-      ],
-      target: "chatbot",
-    },
-  ];
+
+  // Enhanced mapping with sub-actions
+  const map: Array<{ keys: string[]; target: FeatureId; subAction?: string }> =
+    [
+      // Profile navigation
+      {
+        keys: [
+          "profile",
+          "my profile",
+          "account",
+          "settings",
+          "പ്രൊഫൈൽ",
+          "പ്രോഫൈൽ",
+          "എന്റെ പ്രൊഫൈൽ",
+          "അക്കൗണ്ട്",
+          "സെറ്റിംഗ്സ്",
+          "प्रोफाइल",
+          "मेरा प्रोफाइल",
+          "खाता",
+        ],
+        target: "profile",
+      },
+      // Twin with recommendations sub-action
+      {
+        keys: [
+          "recommendations",
+          "suggest",
+          "advice",
+          "crop recommendations",
+          "farming suggestions",
+          "which crop",
+          "cropwise",
+          "crop wise",
+          "ശുപാർശകൾ",
+          "നിർദ്ദേശങ്ങൾ",
+          "വിള ശുപാർശകൾ",
+          "കർഷിക നിർദ്ദേശങ്ങൾ",
+          "ഏത് വിള",
+          "सिफारिश",
+          "सुझाव",
+          "फसल की सिफारिश",
+        ],
+        target: "twin",
+        subAction: "recommendations",
+      },
+      // Twin main dashboard
+      {
+        keys: [
+          "twin",
+          "digital",
+          "ട്വിൻ",
+          "ഡിജിറ്റൽ",
+          "farming twin",
+          "കാർഷിക ട്വിൻ",
+        ],
+        target: "twin",
+        subAction: "twin",
+      },
+      // Weather with sub-actions
+      {
+        keys: [
+          "current weather",
+          "weather now",
+          "today weather",
+          "ഇന്നത്തെ കാലാവസ്ഥ",
+          "നിലവിലെ കാലാവസ്ഥ",
+          "अभी मौसम",
+          "आज का मौसम",
+        ],
+        target: "weather" as FeatureId,
+        subAction: "current",
+      },
+      {
+        keys: [
+          "weather forecast",
+          "tomorrow weather",
+          "weather prediction",
+          "കാലാവസ്ഥാ പ്രവചനം",
+          "നാളത്തെ കാലാവസ്ഥ",
+          "मौसम पूर्वानुमान",
+          "कल का मौसम",
+        ],
+        target: "weather" as FeatureId,
+        subAction: "forecast",
+      },
+      {
+        keys: [
+          "weather alert",
+          "storm alert",
+          "rain alert",
+          "കാലാവസ്ഥാ അലേർട്ട്",
+          "കൊടുങ്കാറ്റ് അലേർട്ട്",
+          "മഴ അലേർട്ട്",
+          "मौसम अलर्ट",
+          "तूफान अलर्ट",
+        ],
+        target: "weather" as FeatureId,
+        subAction: "alerts",
+      },
+      // General weather (defaults to current)
+      {
+        keys: [
+          "weather",
+          "rain",
+          "storm",
+          "കാലാവസ്ഥ",
+          "മഴ",
+          "കൊടുങ്കാറ്റ്",
+          "കാറ്റ്",
+          "मौसम",
+          "बारिश",
+          "तूफान",
+        ],
+        target: "weather" as FeatureId,
+        subAction: "current",
+      },
+      // Notifications/Alerts
+      {
+        keys: [
+          "alert",
+          "alerts",
+          "notification",
+          "notifications",
+          "warning",
+          "അലർട്ട്",
+          "അലർട്ടുകൾ",
+          "അറിയിപ്പ്",
+          "അറിയിപ്പുകൾ",
+          "മുന്നറിയിപ്പ്",
+          "मुन्नारियिप्पुकळ्",
+          "अलर्ट",
+          "सूचना",
+          "चेतावनी",
+        ],
+        target: "notifications",
+      },
+      // News
+      {
+        keys: [
+          "news",
+          "agriculture news",
+          "farming news",
+          "വാർത്ത",
+          "വാർത്തകൾ",
+          "ന്യൂസ്",
+          "കാർഷിക വാർത്തകൾ",
+          "समाचार",
+          "न्यूज़",
+          "कृषि समाचार",
+        ],
+        target: "news",
+      },
+      {
+        keys: [
+          "expense",
+          "spend",
+          "spent",
+          "cost",
+          "expenditure",
+          "money",
+          "how much",
+          "ചെലവ്",
+          "ചിലവ്",
+          "പണം",
+          "accounts",
+          "അക്കൗണ്ട്",
+          "ചെലവായത്",
+          "എത്ര ചിലവായി",
+        ],
+        target: "expense",
+      },
+      {
+        keys: [
+          "market",
+          "price",
+          "mandi",
+          "rate",
+          "വില",
+          "വിലകൾ",
+          "മണ്ഡി",
+          "വിപണി",
+        ],
+        target: "market",
+      },
+      {
+        keys: [
+          "weather",
+          "rain",
+          "storm",
+          "കാലാവസ്ഥ",
+          "മഴ",
+          "കൊടുങ്കാറ്റ്",
+          "കാറ്റ്",
+        ],
+        target: "weather",
+      },
+      {
+        keys: [
+          "diagnose",
+          "disease",
+          "doctor",
+          "രോഗ",
+          "identify",
+          "രോഗനിർണയം",
+          "ഡോക്ടർ",
+          "രോഗം",
+          // Natural problem descriptions
+          "something on",
+          "spots on",
+          "yellow leaves",
+          "sick",
+          "problem with",
+          "wrong with",
+          "leaf",
+          "leaves",
+          "plant",
+          "പുള്ളികൾ",
+          "മഞ്ഞ ഇലകൾ",
+          "രോഗിച്ച",
+          "പ്രശ്നം",
+          "ഇലകൾ",
+          "ചെടി",
+        ],
+        target: "diagnose",
+      },
+      {
+        keys: [
+          "scan",
+          "camera",
+          "pest",
+          "insect",
+          "സ്കാൻ",
+          "ക്യാമറ",
+          "കീടങ്ങൾ",
+          "പ്രാണി",
+        ],
+        target: "scan",
+      },
+      {
+        keys: [
+          "plan",
+          "calendar",
+          "sow",
+          "seeding",
+          "വിത്ത്",
+          "ആസൂത്രണം",
+          "കലണ്ടർ",
+          "വിത്തിടൽ",
+          "വിതയൽ",
+        ],
+        target: "planner",
+      },
+      {
+        keys: ["twin", "digital", "ട്വിൻ", "ഡിജിറ്റൽ"],
+        target: "twin",
+      },
+      {
+        keys: [
+          "forum",
+          "community",
+          "group",
+          "ഫോറം",
+          "കമ്യൂണിറ്റി",
+          "ഗ്രൂപ്പ്",
+          "ചർച്ച",
+        ],
+        target: "forum",
+      },
+      {
+        keys: [
+          "knowledge",
+          "guide",
+          "how to",
+          "help",
+          "home remedies",
+          "natural solutions",
+          "soil testing",
+          "organic methods",
+          "diy solutions",
+          "വിജ്ഞാനം",
+          "ഗൈഡ്",
+          "എങ്ങനെ",
+          "സഹായം",
+          "വീട്ടിലെ പരിഹാരം",
+          "പ്രകൃതിദത്ത പരിഹാരം",
+          "മണ്ണ് പരിശോധന",
+          "ജൈവിക രീതികൾ",
+        ],
+        target: "knowledge",
+      },
+      {
+        keys: [
+          "resources",
+          "knowledge center",
+          "learning center",
+          "റിസോഴ്സുകൾ",
+          "വിജ്ഞാന കേന്ദ്രം",
+          "പഠന കേന്ദ്രം",
+        ],
+        target: "resources",
+      },
+      {
+        keys: [
+          "workers",
+          "labour",
+          "laborers",
+          "hire",
+          "employment",
+          "workforce",
+          "find workers",
+          "need workers",
+          "വർക്കർമാർ",
+          "തൊഴിലാളികൾ",
+          "വാടകയ്ക്ക്",
+          "തൊഴിൽ",
+          "ജോലിക്കാർ",
+          "വർക്കർമാരെ കണ്ടെത്തുക",
+        ],
+        target: "labourers",
+      },
+      {
+        keys: [
+          "fair farm",
+          "marketplace",
+          "sell crops",
+          "direct market",
+          "farmer market",
+          "sell direct",
+          "ഫെയർ ഫാം",
+          "മാർക്കറ്റ്പ്ലേസ്",
+          "വിള വിൽപന",
+          "നേരിട്ട് മാർക്കറ്റ്",
+          "കർഷക മാർക്കറ്റ്",
+          "നേരിട്ട് വിൽക്കുക",
+        ],
+        target: "fairfarm",
+      },
+      {
+        keys: [
+          "buy",
+          "shop",
+          "purchase",
+          "order",
+          "വാങ്ങുക",
+          "ഷോപ്പിംഗ്",
+          "ഓർഡർ",
+        ],
+        target: "buy",
+      },
+      {
+        keys: ["news", "update", "headline", "വാർത്തകൾ", "അപ്ഡേറ്റ്", "വാർത്ത"],
+        target: "news",
+      },
+      {
+        keys: [
+          "scheme",
+          "subsidy",
+          "yojana",
+          "സർക്കാർ",
+          "പദ്ധതി",
+          "സബ്സിഡി",
+          "യോജന",
+        ],
+        target: "schemes",
+      },
+      {
+        keys: ["alert", "notification", "അലാറം", "അറിയിപ്പ്"],
+        target: "notifications",
+      },
+      {
+        keys: [
+          "profile",
+          "account",
+          "settings",
+          "പ്രൊഫൈൽ",
+          "അക്കൗണ്ട്",
+          "സെറ്റിംഗുകൾ",
+        ],
+        target: "profile",
+      },
+      {
+        keys: ["home", "dashboard", "main", "ഹോം", "ഡാഷ്ബോർഡ്", "മുഖ്യം"],
+        target: "home",
+      },
+      {
+        keys: [
+          "assistant",
+          "chat",
+          "help",
+          "support",
+          "അസിസ്റ്റന്റ്",
+          "ചാറ്റ്",
+          "സഹായം",
+          "സപ്പോർട്ട്",
+          "सहायक",
+          "चैट",
+          "सहायता",
+        ],
+        target: "chatbot",
+      },
+    ];
+
+  // Check for matches with sub-actions
   for (const m of map) {
     if (m.keys.some((k) => q.includes(k))) {
       const result: VoiceDecision = {
-        action: "navigate",
-        targetId: m.target,
+        action: m.target === "weather" ? "weather" : "navigate",
+        targetId: m.target === "weather" ? null : m.target,
+        subAction: m.subAction || undefined,
         confidence: 0.6,
         queryNormalized: q,
       };
@@ -1211,17 +1388,45 @@ export async function routeFromTranscript(
   if (ai) {
     console.log("✅ Gemini provided decision:", ai);
 
-    // Special handling for weather requests - return weather action instead of navigate
+    // Enhanced handling for different action types
+    if (ai.action === "weather") {
+      // Weather action already correctly formatted
+      console.log("🌤️ Weather action processed:", ai);
+      return ai;
+    }
+
     if (ai.action === "navigate" && ai.targetId === "weather") {
       console.log("🌤️ Converting weather navigation to weather action");
       return {
         action: "weather",
         targetId: null,
+        subAction: ai.subAction || "current", // default to current weather
         confidence: ai.confidence,
         reason: ai.reason,
         language: ai.language,
         queryNormalized: ai.queryNormalized,
       };
+    }
+
+    // Handle navigation with sub-actions
+    if (ai.action === "navigate" && ai.targetId && ai.subAction) {
+      console.log(
+        `🎯 Navigation with sub-action: ${ai.targetId} → ${ai.subAction}`
+      );
+      return ai;
+    }
+
+    // Validate targetId is in known features
+    if (
+      ai.action === "navigate" &&
+      ai.targetId &&
+      !KNOWN_FEATURE_IDS.includes(ai.targetId as any)
+    ) {
+      console.warn(
+        `⚠️ Unknown targetId: ${ai.targetId}, falling back to offline match`
+      );
+      const off = offlineMatch(transcript, language);
+      return off;
     }
 
     // If AI says navigate but target is null, fallback
@@ -1231,41 +1436,46 @@ export async function routeFromTranscript(
       );
       const off = offlineMatch(transcript, language);
       console.log("🔄 Offline fallback result:", off);
-      
+
       // Handle weather in offline fallback too
       if (off.action === "navigate" && off.targetId === "weather") {
-        console.log("🌤️ Converting offline weather navigation to weather action");
+        console.log(
+          "🌤️ Converting offline weather navigation to weather action"
+        );
         return {
           action: "weather",
           targetId: null,
+          subAction: "current",
           confidence: off.confidence,
           reason: off.reason,
           language: off.language,
           queryNormalized: off.queryNormalized,
         };
       }
-      
+
       return off;
     }
+
     return ai;
   }
 
   console.log("❌ Gemini failed, using offline fallback");
   const offline = offlineMatch(transcript, language);
   console.log("🔄 Offline fallback result:", offline);
-  
+
   // Handle weather in offline fallback
   if (offline.action === "navigate" && offline.targetId === "weather") {
     console.log("🌤️ Converting offline weather navigation to weather action");
     return {
       action: "weather",
       targetId: null,
+      subAction: "current",
       confidence: offline.confidence,
       reason: offline.reason,
       language: offline.language,
       queryNormalized: offline.queryNormalized,
     };
   }
-  
+
   return offline;
 }

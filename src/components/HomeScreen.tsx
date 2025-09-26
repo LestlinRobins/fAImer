@@ -29,7 +29,12 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { useTranslation } from "@/contexts/TranslationContext";
 import { routeFromTranscript } from "@/lib/voiceNavigation";
@@ -699,63 +704,85 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
     {
       id: "drought-alert",
       type: "Climate Alert",
-      title: currentLanguage === "ml" ? "വരൾച്ച മുന്നറിയിപ്പ്" : "Drought Warning",
-      description: currentLanguage === "ml" ? "അടുത്ത 15 ദിവസത്തേക്ക് മഴ പ്രതീക്ഷിക്കുന്നില്ല. ജലസംരക്ഷണ നടപടികൾ സ്വീകരിക്കുക." : "No rainfall expected for the next 15 days. Take water conservation measures.",
+      title:
+        currentLanguage === "ml" ? "വരൾച്ച മുന്നറിയിപ്പ്" : "Drought Warning",
+      description:
+        currentLanguage === "ml"
+          ? "അടുത്ത 15 ദിവസത്തേക്ക് മഴ പ്രതീക്ഷിക്കുന്നില്ല. ജലസംരക്ഷണ നടപടികൾ സ്വീകരിക്കുക."
+          : "No rainfall expected for the next 15 days. Take water conservation measures.",
       severity: "High",
       date: "Today",
       icon: AlertTriangle,
       bgColor: "bg-red-50 dark:bg-red-950/20",
       borderColor: "border-red-200 dark:border-red-800",
-      textColor: "text-red-700 dark:text-red-300"
+      textColor: "text-red-700 dark:text-red-300",
     },
     {
       id: "govt-scheme",
       type: "Government Scheme",
-      title: currentLanguage === "ml" ? "പ്രധാനമന്ത്രി കിസാൻ സമ്മാൻ നിധി" : "PM Kisan Samman Nidhi",
-      description: currentLanguage === "ml" ? "₹2000 അടുത്ത ഡോസ് ഡിസംബർ 15ന് റിലീസ് ചെയ്യും. നിങ്ങളുടെ KYC അപ്ഡേറ്റ് ചെയ്യുക." : "Next installment of ₹2000 will be released on Dec 15. Update your KYC.",
+      title:
+        currentLanguage === "ml"
+          ? "പ്രധാനമന്ത്രി കിസാൻ സമ്മാൻ നിധി"
+          : "PM Kisan Samman Nidhi",
+      description:
+        currentLanguage === "ml"
+          ? "₹2000 അടുത്ത ഡോസ് ഡിസംബർ 15ന് റിലീസ് ചെയ്യും. നിങ്ങളുടെ KYC അപ്ഡേറ്റ് ചെയ്യുക."
+          : "Next installment of ₹2000 will be released on Dec 15. Update your KYC.",
       severity: "Medium",
       date: "2 days ago",
       icon: FileText,
       bgColor: "bg-blue-50 dark:bg-blue-950/20",
       borderColor: "border-blue-200 dark:border-blue-800",
-      textColor: "text-blue-700 dark:text-blue-300"
+      textColor: "text-blue-700 dark:text-blue-300",
     },
     {
       id: "pest-outbreak",
       type: "Community Alert",
-      title: currentLanguage === "ml" ? "കീടബാധ മുന്നറിയിപ്പ്" : "Pest Outbreak Warning",
-      description: currentLanguage === "ml" ? "സമീപ പ്രദേശങ്ങളിൽ തവിട്ടുപ്പൻ കീടത്തിന്റെ ആക്രമണം. ഉടനടി സ്പ്രേയിംഗ് നടത്തുക." : "Brown plant hopper attack reported in nearby areas. Apply immediate spraying.",
+      title:
+        currentLanguage === "ml"
+          ? "കീടബാധ മുന്നറിയിപ്പ്"
+          : "Pest Outbreak Warning",
+      description:
+        currentLanguage === "ml"
+          ? "സമീപ പ്രദേശങ്ങളിൽ തവിട്ടുപ്പൻ കീടത്തിന്റെ ആക്രമണം. ഉടനടി സ്പ്രേയിംഗ് നടത്തുക."
+          : "Brown plant hopper attack reported in nearby areas. Apply immediate spraying.",
       severity: "High",
       date: "1 day ago",
       icon: SprayCan,
       bgColor: "bg-orange-50 dark:bg-orange-950/20",
       borderColor: "border-orange-200 dark:border-orange-800",
-      textColor: "text-orange-700 dark:text-orange-300"
+      textColor: "text-orange-700 dark:text-orange-300",
     },
     {
       id: "weather-forecast",
       type: "Weather Alert",
       title: currentLanguage === "ml" ? "മഴ പ്രവചനം" : "Rainfall Forecast",
-      description: currentLanguage === "ml" ? "അടുത്ത 3 ദിവസത്തിൽ 50mm മഴ പ്രതീക്ഷിക്കുന്നു. വിളവെടുപ്പിന് തയ്യാറാകുക." : "Moderate rainfall of 50mm expected in next 3 days. Prepare for harvesting.",
+      description:
+        currentLanguage === "ml"
+          ? "അടുത്ത 3 ദിവസത്തിൽ 50mm മഴ പ്രതീക്ഷിക്കുന്നു. വിളവെടുപ്പിന് തയ്യാറാകുക."
+          : "Moderate rainfall of 50mm expected in next 3 days. Prepare for harvesting.",
       severity: "Low",
       date: "3 hours ago",
       icon: Droplets,
       bgColor: "bg-green-50 dark:bg-green-950/20",
       borderColor: "border-green-200 dark:border-green-800",
-      textColor: "text-green-700 dark:text-green-300"
+      textColor: "text-green-700 dark:text-green-300",
     },
     {
       id: "market-price",
       type: "Market Update",
       title: currentLanguage === "ml" ? "വില വർധന" : "Price Surge",
-      description: currentLanguage === "ml" ? "തക്കാളി വില ₹45/kg എത്തി. വിൽപന അവസരം പ്രയോജനപ്പെടുത്തുക." : "Tomato prices reached ₹45/kg. Take advantage of selling opportunity.",
+      description:
+        currentLanguage === "ml"
+          ? "തക്കാളി വില ₹45/kg എത്തി. വിൽപന അവസരം പ്രയോജനപ്പെടുത്തുക."
+          : "Tomato prices reached ₹45/kg. Take advantage of selling opportunity.",
       severity: "Low",
       date: "5 hours ago",
       icon: ShoppingCart,
       bgColor: "bg-purple-50 dark:bg-purple-950/20",
       borderColor: "border-purple-200 dark:border-purple-800",
-      textColor: "text-purple-700 dark:text-purple-300"
-    }
+      textColor: "text-purple-700 dark:text-purple-300",
+    },
   ];
 
   // Basic SEO for this screen
@@ -770,14 +797,14 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   const [listening, setListening] = useState(false);
   const [interimText, setInterimText] = useState<string>("");
   const [isProcessing, setIsProcessing] = useState(false);
-  
+
   // Weather Alert Dialog state
   const [isWeatherAlertOpen, setIsWeatherAlertOpen] = useState(false);
   const [selectedAlert, setSelectedAlert] = useState<any>(null);
-  
+
   // Announcement carousel state
   const [currentAnnouncementIndex, setCurrentAnnouncementIndex] = useState(0);
-  
+
   const recognitionRef = useRef<any>(null);
   const ensureRecognition = () => {
     const SR: any =
@@ -794,46 +821,55 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
     );
     return r;
   };
-  
+
   const handleCurrentWeatherClick = () => {
     // Create current weather alert data based on current conditions
     const currentWeatherAlert = {
       id: "current",
-      title: currentLanguage === "ml" ? "നിലവിലെ കാലാവസ്ഥ വിവരങ്ങൾ" : "Current Weather Information",
+      title:
+        currentLanguage === "ml"
+          ? "നിലവിലെ കാലാവസ്ഥ വിവരങ്ങൾ"
+          : "Current Weather Information",
       type: currentLanguage === "ml" ? "തത്സമയ അപ്ഡേറ്റ്" : "Live Update",
       severity: currentLanguage === "ml" ? "സാധാരണ" : "Normal",
-      location: locationData 
+      location: locationData
         ? `${locationData.city}${locationData.state ? `, ${locationData.state}` : ""}${locationData.country ? `, ${locationData.country}` : ""}`
-        : (currentLanguage === "ml" ? "നിങ്ങളുടെ പ്രദേശം" : "Your Location"),
-      description: currentLanguage === "ml" 
-        ? weatherData 
-          ? `നിലവിൽ ${weatherData.description}. താപനില ${weatherData.temperature - 8}°C ആണ്. കാറ്റിന്റെ വേഗത ${weatherData.windSpeed} കി.മീ/മണിക്കൂർ ${weatherData.windDirection} ദിശയിൽ.`
-          : "ഇന്നത്തെ കാലാവസ്ഥ മിതമായതാണ്. കൃഷിക്കായി അനുയോജ്യമായ സാഹചര്യങ്ങൾ നിലനിൽക്കുന്നു."
-        : weatherData 
-          ? `Currently ${weatherData.description}. Temperature is ${weatherData.temperature - 8}°C with ${weatherData.windDirection} winds at ${weatherData.windSpeed} km/h.`
-          : "Today's weather conditions are moderate and suitable for farming activities.",
-      recommendations: currentLanguage === "ml" ? [
-        "ഇന്നത്തെ കാലാവസ്ഥ കൃഷിപ്പണികൾക്ക് അനുയോജ്യം",
-        "പതിവ് ജലസേചനം തുടരാവുന്നതാണ്",
-        "വിളകളുടെ വളർച്ച നിരീക്ഷിക്കുക",
-        "കാലാവസ്ഥാ മാറ്റങ്ങൾക്കായി തയ്യാറായിരിക്കുക"
-      ] : [
-        "Weather conditions are suitable for farming",
-        "Continue regular irrigation schedule",
-        "Monitor crop growth progress",
-        "Stay prepared for weather changes"
-      ],
+        : currentLanguage === "ml"
+          ? "നിങ്ങളുടെ പ്രദേശം"
+          : "Your Location",
+      description:
+        currentLanguage === "ml"
+          ? weatherData
+            ? `നിലവിൽ ${weatherData.description}. താപനില ${weatherData.temperature - 8}°C ആണ്. കാറ്റിന്റെ വേഗത ${weatherData.windSpeed} കി.മീ/മണിക്കൂർ ${weatherData.windDirection} ദിശയിൽ.`
+            : "ഇന്നത്തെ കാലാവസ്ഥ മിതമായതാണ്. കൃഷിക്കായി അനുയോജ്യമായ സാഹചര്യങ്ങൾ നിലനിൽക്കുന്നു."
+          : weatherData
+            ? `Currently ${weatherData.description}. Temperature is ${weatherData.temperature - 8}°C with ${weatherData.windDirection} winds at ${weatherData.windSpeed} km/h.`
+            : "Today's weather conditions are moderate and suitable for farming activities.",
+      recommendations:
+        currentLanguage === "ml"
+          ? [
+              "ഇന്നത്തെ കാലാവസ്ഥ കൃഷിപ്പണികൾക്ക് അനുയോജ്യം",
+              "പതിവ് ജലസേചനം തുടരാവുന്നതാണ്",
+              "വിളകളുടെ വളർച്ച നിരീക്ഷിക്കുക",
+              "കാലാവസ്ഥാ മാറ്റങ്ങൾക്കായി തയ്യാറായിരിക്കുക",
+            ]
+          : [
+              "Weather conditions are suitable for farming",
+              "Continue regular irrigation schedule",
+              "Monitor crop growth progress",
+              "Stay prepared for weather changes",
+            ],
       timeline: currentLanguage === "ml" ? "ഇന്ന്" : "Today",
       temperature: weatherData ? `${weatherData.temperature - 8}°C` : "22°C",
       humidity: "65-75%",
       rainfall: "0-5mm",
-      windSpeed: weatherData ? `${weatherData.windSpeed} km/h` : "12 km/h"
+      windSpeed: weatherData ? `${weatherData.windSpeed} km/h` : "12 km/h",
     };
-    
+
     setSelectedAlert(currentWeatherAlert);
     setIsWeatherAlertOpen(true);
   };
-  
+
   const handleMicClick = () => {
     if (listening) {
       // Stop listening if already active
@@ -879,41 +915,16 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
           description: `"${finalTranscript}"`,
         });
         try {
-          // Route via Gemini / fallback with language context
+          // Enhanced voice routing with comprehensive sub-action support
           const decision = await routeFromTranscript(
             finalTranscript,
             currentLanguage
           );
-          if (decision.action === "navigate" && decision.targetId) {
-            // Special handling for recommendation queries
-            if (decision.targetId === "twin" && isRecommendationQuery(finalTranscript)) {
-              if (onRecommendationsClick) {
-                onRecommendationsClick();
-              } else {
-                onFeatureClick(decision.targetId);
-              }
-            } else {
-              onFeatureClick(decision.targetId);
-            }
-            toast({
-              title: getVoiceText("navigating"),
-              description: `${decision.targetId} • ${(decision.confidence * 100).toFixed(0)}%`,
-            });
-          } else if (decision.action === "weather") {
-            // Handle weather requests by opening the weather popup
-            handleCurrentWeatherClick();
-            toast({
-              title: currentLanguage === "ml" ? "കാലാവസ്ഥ വിവരങ്ങൾ" : "Weather Information",
-              description: `${currentLanguage === "ml" ? "കാലാവസ്ഥാ പോപ്പപ്പ് തുറക്കുന്നു" : "Opening weather popup"} • ${(decision.confidence * 100).toFixed(0)}%`,
-            });
-          } else {
-            // Route to chatbot with the question
-            if (onVoiceChat) {
-              onVoiceChat(finalTranscript);
-            } else {
-              onFeatureClick("chatbot");
-            }
-          }
+
+          console.log("🎯 Voice decision received:", decision);
+
+          // Use the enhanced navigation handler
+          await handleVoiceNavigation(decision);
         } catch (error) {
           console.error("Voice routing error:", error);
           toast({
@@ -955,27 +966,201 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
     }
   };
 
+  // Enhanced voice navigation handler with full sub-action support
+  const handleVoiceNavigation = async (decision: any) => {
+    console.log("🎯 Processing voice decision:", decision);
+
+    switch (decision.action) {
+      case "navigate":
+        if (!decision.targetId) {
+          // Fallback to chatbot if no target
+          if (onVoiceChat) {
+            onVoiceChat(decision.queryNormalized || "I need help");
+          } else {
+            onFeatureClick("chatbot");
+          }
+          return;
+        }
+
+        // Handle special navigation cases with sub-actions
+        switch (decision.targetId) {
+          case "twin":
+            if (decision.subAction === "recommendations") {
+              if (onRecommendationsClick) {
+                onRecommendationsClick();
+              } else {
+                onFeatureClick("twin");
+              }
+              toast({
+                title: getVoiceText("navigating"),
+                description: `${currentLanguage === "ml" ? "വിള ശുപാർശകൾ" : "Crop Recommendations"} • ${(decision.confidence * 100).toFixed(0)}%`,
+              });
+            } else {
+              onFeatureClick("twin");
+              toast({
+                title: getVoiceText("navigating"),
+                description: `${currentLanguage === "ml" ? "കാർഷിക ട്വിൻ" : "Farming Twin"} • ${(decision.confidence * 100).toFixed(0)}%`,
+              });
+            }
+            break;
+
+          case "weather":
+            // Weather should be handled as weather action, but in case it comes as navigate
+            handleCurrentWeatherClick();
+            toast({
+              title:
+                currentLanguage === "ml"
+                  ? "കാലാവസ്ഥ വിവരങ്ങൾ"
+                  : "Weather Information",
+              description: `${currentLanguage === "ml" ? "കാലാവസ്ഥ വിവരങ്ങൾ കാണിക്കുന്നു" : "Showing weather information"} • ${(decision.confidence * 100).toFixed(0)}%`,
+            });
+            break;
+
+          default:
+            // Standard navigation to other features
+            onFeatureClick(decision.targetId);
+
+            // Get localized feature name for toast
+            const featureNames: { [key: string]: { ml: string; en: string } } =
+              {
+                home: { ml: "ഹോം", en: "Home" },
+                profile: { ml: "പ്രൊഫൈൽ", en: "Profile" },
+                diagnose: { ml: "രോഗനിർണയം", en: "Crop Diagnosis" },
+                market: { ml: "വിപണി വിലകൾ", en: "Market Prices" },
+                planner: { ml: "വിള ആസൂത്രണം", en: "Crop Planner" },
+                forum: { ml: "കർഷക ഫോറം", en: "Farmer Forum" },
+                knowledge: { ml: "വിജ്ഞാന കേന്ദ്രം", en: "Knowledge Center" },
+                buy: { ml: "ഇൻപുട്ടുകൾ വാങ്ങുക", en: "Buy Inputs" },
+                scan: { ml: "കീട സ്കാൻ", en: "Pest Scan" },
+                expense: { ml: "ചെലവ് ട്രാക്കർ", en: "Expense Tracker" },
+                news: { ml: "കാർഷിക വാർത്തകൾ", en: "Agriculture News" },
+                schemes: { ml: "സർക്കാർ പദ്ധതികൾ", en: "Government Schemes" },
+                labourers: { ml: "തൊഴിലാളി കേന്ദ്രം", en: "Labour Hub" },
+                fairfarm: { ml: "ഫെയർ ഫാം", en: "FairFarm Marketplace" },
+                notifications: { ml: "അറിയിപ്പുകൾ", en: "Notifications" },
+                resources: { ml: "വിഭവങ്ങൾ", en: "Resources" },
+              };
+
+            const featureName =
+              featureNames[decision.targetId]?.[currentLanguage] ||
+              featureNames[decision.targetId]?.en ||
+              decision.targetId;
+
+            toast({
+              title: getVoiceText("navigating"),
+              description: `${featureName} • ${(decision.confidence * 100).toFixed(0)}%`,
+            });
+            break;
+        }
+        break;
+
+      case "weather":
+        // Enhanced weather handling with sub-actions
+        switch (decision.subAction) {
+          case "current":
+          case undefined:
+          case null:
+            handleCurrentWeatherClick();
+            toast({
+              title:
+                currentLanguage === "ml"
+                  ? "നിലവിലെ കാലാവസ്ഥ"
+                  : "Current Weather",
+              description: `${currentLanguage === "ml" ? "കാലാവസ്ഥ വിവരങ്ങൾ കാണിക്കുന്നു" : "Showing current weather"} • ${(decision.confidence * 100).toFixed(0)}%`,
+            });
+            break;
+
+          case "forecast":
+            handleCurrentWeatherClick(); // Could be enhanced to show forecast-specific popup
+            toast({
+              title:
+                currentLanguage === "ml"
+                  ? "കാലാവസ്ഥാ പ്രവചനം"
+                  : "Weather Forecast",
+              description: `${currentLanguage === "ml" ? "പ്രവചന വിവരങ്ങൾ കാണിക്കുന്നു" : "Showing weather forecast"} • ${(decision.confidence * 100).toFixed(0)}%`,
+            });
+            break;
+
+          case "alerts":
+            handleCurrentWeatherClick(); // Could navigate to specific alerts screen
+            toast({
+              title:
+                currentLanguage === "ml"
+                  ? "കാലാവസ്ഥാ മുന്നറിയിപ്പുകൾ"
+                  : "Weather Alerts",
+              description: `${currentLanguage === "ml" ? "മുന്നറിയിപ്പുകൾ കാണിക്കുന്നു" : "Showing weather alerts"} • ${(decision.confidence * 100).toFixed(0)}%`,
+            });
+            break;
+
+          default:
+            handleCurrentWeatherClick();
+            toast({
+              title:
+                currentLanguage === "ml"
+                  ? "കാലാവസ്ഥ വിവരങ്ങൾ"
+                  : "Weather Information",
+              description: `${currentLanguage === "ml" ? "കാലാവസ്ഥ വിവരങ്ങൾ കാണിക്കുന്നു" : "Showing weather information"} • ${(decision.confidence * 100).toFixed(0)}%`,
+            });
+            break;
+        }
+        break;
+
+      case "chat":
+      default:
+        // Route to chatbot for complex queries or when no clear intent found
+        if (onVoiceChat) {
+          onVoiceChat(decision.queryNormalized || "I need help");
+        } else {
+          onFeatureClick("chatbot");
+        }
+        toast({
+          title:
+            currentLanguage === "ml"
+              ? "സഹായകനിലേക്ക് കൊണ്ടുപോകുന്നു"
+              : "Routing to Assistant",
+          description: `${currentLanguage === "ml" ? "സങ്കീർണ്ണമായ ചോദ്യത്തിന് സഹായം" : "Getting help from chatbot"} • ${(decision.confidence * 100).toFixed(0)}%`,
+        });
+        break;
+    }
+  };
+
   // Helper function to detect recommendation-related queries
   const isRecommendationQuery = (query: string): boolean => {
     const recommendationKeywords = [
-      "recommendation", "suggest", "advice", "which crop", "best crop", "suitable crop",
-      "cropwise", "crop wise", "what to plant", "should I grow", "recommend",
-      "ശുപാർശ", "നിർദ്ദേശ", "ഏത് വിള", "മികച്ച വിള", "അനുയോജ്യമായ വിള", "എന്ത് നടാം"
+      "recommendation",
+      "suggest",
+      "advice",
+      "which crop",
+      "best crop",
+      "suitable crop",
+      "cropwise",
+      "crop wise",
+      "what to plant",
+      "should I grow",
+      "recommend",
+      "ശുപാർശ",
+      "നിർദ്ദേശ",
+      "ഏത് വിള",
+      "മികച്ച വിള",
+      "അനുയോജ്യമായ വിള",
+      "എന്ത് നടാം",
     ];
-    
+
     const lowerQuery = query.toLowerCase();
-    return recommendationKeywords.some(keyword => lowerQuery.includes(keyword.toLowerCase()));
+    return recommendationKeywords.some((keyword) =>
+      lowerQuery.includes(keyword.toLowerCase())
+    );
   };
 
   // Announcement carousel navigation functions
   const goToPreviousAnnouncement = () => {
-    setCurrentAnnouncementIndex((prev) => 
+    setCurrentAnnouncementIndex((prev) =>
       prev === 0 ? announcements.length - 1 : prev - 1
     );
   };
 
   const goToNextAnnouncement = () => {
-    setCurrentAnnouncementIndex((prev) => 
+    setCurrentAnnouncementIndex((prev) =>
       prev === announcements.length - 1 ? 0 : prev + 1
     );
   };
@@ -1017,10 +1202,14 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
                     : "Location unavailable"}
             </span>
           </div>
-          <div 
+          <div
             className="mt-3 flex flex-col items-start gap-1 cursor-pointer hover:opacity-80 transition-opacity p-2 rounded-lg hover:bg-background/20"
             onClick={handleCurrentWeatherClick}
-            title={currentLanguage === "ml" ? "കൂടുതൽ കാലാവസ്ഥാ വിവരങ്ങൾക്ക് ക്ലിക്ക് ചെയ്യുക" : "Click for more weather details"}
+            title={
+              currentLanguage === "ml"
+                ? "കൂടുതൽ കാലാവസ്ഥാ വിവരങ്ങൾക്ക് ക്ലിക്ക് ചെയ്യുക"
+                : "Click for more weather details"
+            }
           >
             <div className="flex items-baseline">
               <span className="text-foreground text-3xl sm:text-4xl font-semibold">
@@ -1053,7 +1242,11 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
           className="absolute bottom-2 right-2 z-10 w-24 h-24 object-contain-center cursor-pointer hover:scale-105 transition-transform"
           loading="eager"
           onClick={handleCurrentWeatherClick}
-          title={currentLanguage === "ml" ? "കൂടുതൽ കാലാവസ്ഥാ വിവരങ്ങൾക്ക് ക്ലിക്ക് ചെയ്യുക" : "Click for more weather details"}
+          title={
+            currentLanguage === "ml"
+              ? "കൂടുതൽ കാലാവസ്ഥാ വിവരങ്ങൾക്ക് ക്ലിക്ക് ചെയ്യുക"
+              : "Click for more weather details"
+          }
         />
       </div>
 
@@ -1100,23 +1293,39 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
         {/* Announcements & Alerts Carousel */}
         <div>
           <h2 className="text-lg font-semibold text-foreground mb-4 transition-colors duration-300">
-            {currentLanguage === "ml" ? "അറിയിപ്പുകളും മുന്നറിയിപ്പുകളും" : "Announcements & Alerts"}
+            {currentLanguage === "ml"
+              ? "അറിയിപ്പുകളും മുന്നറിയിപ്പുകളും"
+              : "Announcements & Alerts"}
           </h2>
-          
+
           <div className="relative">
             {/* Current Announcement Card */}
-            <Card className={`relative overflow-hidden transition-all duration-300 ${announcements[currentAnnouncementIndex].bgColor} ${announcements[currentAnnouncementIndex].borderColor}`}>
+            <Card
+              className={`relative overflow-hidden transition-all duration-300 ${announcements[currentAnnouncementIndex].bgColor} ${announcements[currentAnnouncementIndex].borderColor}`}
+            >
               <CardContent className="p-4">
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center space-x-2">
-                    <div className={`p-1.5 rounded-full ${announcements[currentAnnouncementIndex].bgColor}`}>
-                      {React.createElement(announcements[currentAnnouncementIndex].icon, { 
-                        className: `w-4 h-4 ${announcements[currentAnnouncementIndex].textColor}` 
-                      })}
+                    <div
+                      className={`p-1.5 rounded-full ${announcements[currentAnnouncementIndex].bgColor}`}
+                    >
+                      {React.createElement(
+                        announcements[currentAnnouncementIndex].icon,
+                        {
+                          className: `w-4 h-4 ${announcements[currentAnnouncementIndex].textColor}`,
+                        }
+                      )}
                     </div>
-                    <Badge 
-                      variant={announcements[currentAnnouncementIndex].severity === "High" ? "destructive" : 
-                              announcements[currentAnnouncementIndex].severity === "Medium" ? "default" : "secondary"}
+                    <Badge
+                      variant={
+                        announcements[currentAnnouncementIndex].severity ===
+                        "High"
+                          ? "destructive"
+                          : announcements[currentAnnouncementIndex].severity ===
+                              "Medium"
+                            ? "default"
+                            : "secondary"
+                      }
                       className="text-xs"
                     >
                       {announcements[currentAnnouncementIndex].type}
@@ -1126,32 +1335,34 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
                     {announcements[currentAnnouncementIndex].date}
                   </span>
                 </div>
-                
-                <h3 className={`font-semibold text-base mb-2 ${announcements[currentAnnouncementIndex].textColor}`}>
+
+                <h3
+                  className={`font-semibold text-base mb-2 ${announcements[currentAnnouncementIndex].textColor}`}
+                >
                   {announcements[currentAnnouncementIndex].title}
                 </h3>
-                
+
                 <p className="text-sm text-foreground/80 leading-relaxed">
                   {announcements[currentAnnouncementIndex].description}
                 </p>
               </CardContent>
-              
+
               {/* Navigation Arrows */}
-              <button 
+              <button
                 onClick={goToPreviousAnnouncement}
                 className="absolute left-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-white/40 hover:bg-white shadow-sm transition-all duration-200"
               >
                 <ChevronLeft className="w-4 h-4 text-gray-600" />
               </button>
-              
-              <button 
+
+              <button
                 onClick={goToNextAnnouncement}
                 className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-white/80 hover:bg-white shadow-sm transition-all duration-200"
               >
                 <ChevronRight className="w-4 h-4 text-gray-600" />
               </button>
             </Card>
-            
+
             {/* Carousel Indicators */}
             <div className="flex justify-center space-x-2 mt-3">
               {announcements.map((_, index) => (
@@ -1159,9 +1370,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
                   key={index}
                   onClick={() => setCurrentAnnouncementIndex(index)}
                   className={`w-2 h-2 rounded-full transition-all duration-200 ${
-                    index === currentAnnouncementIndex 
-                      ? 'bg-primary w-6' 
-                      : 'bg-muted-foreground/30'
+                    index === currentAnnouncementIndex
+                      ? "bg-primary w-6"
+                      : "bg-muted-foreground/30"
                   }`}
                 />
               ))}
@@ -1239,13 +1450,19 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
               {selectedAlert?.title}
             </DialogTitle>
           </DialogHeader>
-          
+
           {selectedAlert && (
             <div className="space-y-4">
               {/* Alert Type and Timeline */}
               <div className="flex items-center justify-between">
-                <Badge 
-                  variant={selectedAlert.severity === "High" ? "destructive" : selectedAlert.severity === "Medium" ? "default" : "secondary"}
+                <Badge
+                  variant={
+                    selectedAlert.severity === "High"
+                      ? "destructive"
+                      : selectedAlert.severity === "Medium"
+                        ? "default"
+                        : "secondary"
+                  }
                   className="text-xs"
                 >
                   {selectedAlert.type}
@@ -1288,7 +1505,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
               {/* Weather Details Grid */}
               <div>
                 <p className="text-sm font-medium text-foreground dark:text-white mb-3">
-                  {currentLanguage === "ml" ? "കാലാവസ്ഥാ വിവരങ്ങൾ" : "Weather Details"}
+                  {currentLanguage === "ml"
+                    ? "കാലാവസ്ഥാ വിവരങ്ങൾ"
+                    : "Weather Details"}
                 </p>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="flex items-center space-x-2">
@@ -1344,18 +1563,23 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
                   {currentLanguage === "ml" ? "ശുപാർശകൾ" : "Recommendations"}
                 </p>
                 <ul className="space-y-1">
-                  {selectedAlert.recommendations.map((rec: string, index: number) => (
-                    <li key={index} className="text-sm text-muted-foreground dark:text-gray-300 flex items-start">
-                      <span className="text-orange-500 mr-2">•</span>
-                      {rec}
-                    </li>
-                  ))}
+                  {selectedAlert.recommendations.map(
+                    (rec: string, index: number) => (
+                      <li
+                        key={index}
+                        className="text-sm text-muted-foreground dark:text-gray-300 flex items-start"
+                      >
+                        <span className="text-orange-500 mr-2">•</span>
+                        {rec}
+                      </li>
+                    )
+                  )}
                 </ul>
               </div>
 
               {/* Action Button */}
               <div className="flex justify-end pt-4">
-                <Button 
+                <Button
                   onClick={() => setIsWeatherAlertOpen(false)}
                   className="bg-orange-600 hover:bg-orange-700 dark:bg-orange-600 dark:hover:bg-orange-700"
                 >
