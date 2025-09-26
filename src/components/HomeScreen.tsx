@@ -18,10 +18,18 @@ import {
   Wheat,
   LifeBuoy,
   PlayCircle,
+  AlertTriangle,
+  Thermometer,
+  Droplets,
+  Wind,
+  Eye,
+  X,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
 import { useTranslation } from "@/contexts/TranslationContext";
 import { routeFromTranscript } from "@/lib/voiceNavigation";
 import { useAuth } from "@/contexts/AuthContext";
@@ -583,19 +591,18 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
       image: "/lovable-uploads/5da1f9d1-e030-46f1-9d61-291928623066.png",
     },
     {
+      id: "scan",
+      title: getTranslatedText("Scan Pest"),
+      icon: Camera,
+      color: "bg-pink-100 text-pink-600 dark:bg-pink-950 dark:text-pink-300",
+    },
+    {
       id: "twin",
       title: getTranslatedText("Farming Twin"),
       icon: Users,
       color:
         "bg-purple-100 text-purple-600 dark:bg-purple-950 dark:text-purple-300",
       image: "/lovable-uploads/0978174b-ae5f-40db-bd58-07833d59465a.png",
-    },
-    {
-      id: "weather",
-      title: getTranslatedText("Weather Alerts"),
-      icon: Cloud,
-      color: "bg-sky-100 text-sky-600 dark:bg-sky-950 dark:text-sky-300",
-      image: "/lovable-uploads/7f72bec9-abf7-4827-8913-70dc3494457c.png",
     },
     {
       id: "forum",
@@ -620,12 +627,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
       icon: ShoppingCart,
       color:
         "bg-emerald-100 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-300",
-    },
-    {
-      id: "scan",
-      title: getTranslatedText("Scan Pest"),
-      icon: Camera,
-      color: "bg-pink-100 text-pink-600 dark:bg-pink-950 dark:text-pink-300",
     },
     {
       id: "expense",
@@ -713,6 +714,11 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   const [listening, setListening] = useState(false);
   const [interimText, setInterimText] = useState<string>("");
   const [isProcessing, setIsProcessing] = useState(false);
+  
+  // Weather Alert Dialog state
+  const [isWeatherAlertOpen, setIsWeatherAlertOpen] = useState(false);
+  const [selectedAlert, setSelectedAlert] = useState<any>(null);
+  
   const recognitionRef = useRef<any>(null);
   const ensureRecognition = () => {
     const SR: any =
@@ -729,6 +735,46 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
     );
     return r;
   };
+  
+  const handleCurrentWeatherClick = () => {
+    // Create current weather alert data based on current conditions
+    const currentWeatherAlert = {
+      id: "current",
+      title: currentLanguage === "ml" ? "നിലവിലെ കാലാവസ്ഥ വിവരങ്ങൾ" : "Current Weather Information",
+      type: currentLanguage === "ml" ? "തത്സമയ അപ്ഡേറ്റ്" : "Live Update",
+      severity: currentLanguage === "ml" ? "സാധാരണ" : "Normal",
+      location: locationData 
+        ? `${locationData.city}${locationData.state ? `, ${locationData.state}` : ""}${locationData.country ? `, ${locationData.country}` : ""}`
+        : (currentLanguage === "ml" ? "നിങ്ങളുടെ പ്രദേശം" : "Your Location"),
+      description: currentLanguage === "ml" 
+        ? weatherData 
+          ? `നിലവിൽ ${weatherData.description}. താപനില ${weatherData.temperature - 8}°C ആണ്. കാറ്റിന്റെ വേഗത ${weatherData.windSpeed} കി.മീ/മണിക്കൂർ ${weatherData.windDirection} ദിശയിൽ.`
+          : "ഇന്നത്തെ കാലാവസ്ഥ മിതമായതാണ്. കൃഷിക്കായി അനുയോജ്യമായ സാഹചര്യങ്ങൾ നിലനിൽക്കുന്നു."
+        : weatherData 
+          ? `Currently ${weatherData.description}. Temperature is ${weatherData.temperature - 8}°C with ${weatherData.windDirection} winds at ${weatherData.windSpeed} km/h.`
+          : "Today's weather conditions are moderate and suitable for farming activities.",
+      recommendations: currentLanguage === "ml" ? [
+        "ഇന്നത്തെ കാലാവസ്ഥ കൃഷിപ്പണികൾക്ക് അനുയോജ്യം",
+        "പതിവ് ജലസേചനം തുടരാവുന്നതാണ്",
+        "വിളകളുടെ വളർച്ച നിരീക്ഷിക്കുക",
+        "കാലാവസ്ഥാ മാറ്റങ്ങൾക്കായി തയ്യാറായിരിക്കുക"
+      ] : [
+        "Weather conditions are suitable for farming",
+        "Continue regular irrigation schedule",
+        "Monitor crop growth progress",
+        "Stay prepared for weather changes"
+      ],
+      timeline: currentLanguage === "ml" ? "ഇന്ന്" : "Today",
+      temperature: weatherData ? `${weatherData.temperature - 8}°C` : "22°C",
+      humidity: "65-75%",
+      rainfall: "0-5mm",
+      windSpeed: weatherData ? `${weatherData.windSpeed} km/h` : "12 km/h"
+    };
+    
+    setSelectedAlert(currentWeatherAlert);
+    setIsWeatherAlertOpen(true);
+  };
+  
   const handleMicClick = () => {
     if (listening) {
       // Stop listening if already active
@@ -864,7 +910,11 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
                     : "Location unavailable"}
             </span>
           </div>
-          <div className="mt-3 flex flex-col items-start gap-1">
+          <div 
+            className="mt-3 flex flex-col items-start gap-1 cursor-pointer hover:opacity-80 transition-opacity p-2 rounded-lg hover:bg-background/20"
+            onClick={handleCurrentWeatherClick}
+            title={currentLanguage === "ml" ? "കൂടുതൽ കാലാവസ്ഥാ വിവരങ്ങൾക്ക് ക്ലിക്ക് ചെയ്യുക" : "Click for more weather details"}
+          >
             <div className="flex items-baseline">
               <span className="text-foreground text-3xl sm:text-4xl font-semibold">
                 {loadingWeather
@@ -893,8 +943,10 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
               ? "കാലാവസ്ഥ ഐകൺ"
               : "Weather icon - partly cloudy"
           }
-          className="absolute bottom-2 right-2 z-10 w-24 h-24 object-contain-center"
+          className="absolute bottom-2 right-2 z-10 w-24 h-24 object-contain-center cursor-pointer hover:scale-105 transition-transform"
           loading="eager"
+          onClick={handleCurrentWeatherClick}
+          title={currentLanguage === "ml" ? "കൂടുതൽ കാലാവസ്ഥാ വിവരങ്ങൾക്ക് ക്ലിക്ക് ചെയ്യുക" : "Click for more weather details"}
         />
       </div>
 
@@ -1145,6 +1197,143 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
 
         {/* Additional Features */}
       </div>
+
+      {/* Weather Alert Dialog */}
+      <Dialog open={isWeatherAlertOpen} onOpenChange={setIsWeatherAlertOpen}>
+        <DialogContent className="sm:max-w-[500px] max-h-[80vh] overflow-y-auto dark:bg-gray-800 dark:border-gray-700">
+          <DialogHeader>
+            <DialogTitle className="dark:text-white flex items-center">
+              <AlertTriangle className="h-5 w-5 mr-2 text-orange-600 dark:text-orange-400" />
+              {selectedAlert?.title}
+            </DialogTitle>
+          </DialogHeader>
+          
+          {selectedAlert && (
+            <div className="space-y-4">
+              {/* Alert Type and Timeline */}
+              <div className="flex items-center justify-between">
+                <Badge 
+                  variant={selectedAlert.severity === "High" ? "destructive" : selectedAlert.severity === "Medium" ? "default" : "secondary"}
+                  className="text-xs"
+                >
+                  {selectedAlert.type}
+                </Badge>
+                <span className="text-sm text-muted-foreground dark:text-gray-400">
+                  {selectedAlert.timeline}
+                </span>
+              </div>
+
+              {/* Location and Severity */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm font-medium text-foreground dark:text-white mb-1">
+                    {currentLanguage === "ml" ? "സ്ഥലം" : "Location"}
+                  </p>
+                  <p className="text-sm text-muted-foreground dark:text-gray-300">
+                    {selectedAlert.location}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-foreground dark:text-white mb-1">
+                    {currentLanguage === "ml" ? "തീവ്രത" : "Severity"}
+                  </p>
+                  <p className="text-sm text-muted-foreground dark:text-gray-300">
+                    {selectedAlert.severity}
+                  </p>
+                </div>
+              </div>
+
+              {/* Description */}
+              <div>
+                <p className="text-sm font-medium text-foreground dark:text-white mb-2">
+                  {currentLanguage === "ml" ? "വിവരണം" : "Description"}
+                </p>
+                <p className="text-sm text-muted-foreground dark:text-gray-300 leading-relaxed">
+                  {selectedAlert.description}
+                </p>
+              </div>
+
+              {/* Weather Details Grid */}
+              <div>
+                <p className="text-sm font-medium text-foreground dark:text-white mb-3">
+                  {currentLanguage === "ml" ? "കാലാവസ്ഥാ വിവരങ്ങൾ" : "Weather Details"}
+                </p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="flex items-center space-x-2">
+                    <Thermometer className="h-4 w-4 text-red-500" />
+                    <div>
+                      <p className="text-xs text-muted-foreground dark:text-gray-400">
+                        {currentLanguage === "ml" ? "താപനില" : "Temperature"}
+                      </p>
+                      <p className="text-sm font-medium dark:text-white">
+                        {selectedAlert.temperature}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Droplets className="h-4 w-4 text-blue-500" />
+                    <div>
+                      <p className="text-xs text-muted-foreground dark:text-gray-400">
+                        {currentLanguage === "ml" ? "ഈർപ്പം" : "Humidity"}
+                      </p>
+                      <p className="text-sm font-medium dark:text-white">
+                        {selectedAlert.humidity}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Cloud className="h-4 w-4 text-gray-500" />
+                    <div>
+                      <p className="text-xs text-muted-foreground dark:text-gray-400">
+                        {currentLanguage === "ml" ? "മഴ" : "Rainfall"}
+                      </p>
+                      <p className="text-sm font-medium dark:text-white">
+                        {selectedAlert.rainfall}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Wind className="h-4 w-4 text-green-500" />
+                    <div>
+                      <p className="text-xs text-muted-foreground dark:text-gray-400">
+                        {currentLanguage === "ml" ? "കാറ്റ്" : "Wind Speed"}
+                      </p>
+                      <p className="text-sm font-medium dark:text-white">
+                        {selectedAlert.windSpeed}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Recommendations */}
+              <div>
+                <p className="text-sm font-medium text-foreground dark:text-white mb-2">
+                  {currentLanguage === "ml" ? "ശുപാർശകൾ" : "Recommendations"}
+                </p>
+                <ul className="space-y-1">
+                  {selectedAlert.recommendations.map((rec: string, index: number) => (
+                    <li key={index} className="text-sm text-muted-foreground dark:text-gray-300 flex items-start">
+                      <span className="text-orange-500 mr-2">•</span>
+                      {rec}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* Action Button */}
+              <div className="flex justify-end pt-4">
+                <Button 
+                  onClick={() => setIsWeatherAlertOpen(false)}
+                  className="bg-orange-600 hover:bg-orange-700 dark:bg-orange-600 dark:hover:bg-orange-700"
+                >
+                  {currentLanguage === "ml" ? "അവബോധം കൈവന്നു" : "Understood"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
