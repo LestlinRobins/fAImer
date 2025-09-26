@@ -21,18 +21,15 @@ import LabourerHub from "../components/LabourerHub";
 import FairFarm from "../components/FairFarm";
 import CropWise from "../components/CropWise";
 import BottomNavigation from "../components/BottomNavigation";
+import { useAuth } from "../contexts/AuthContext";
 
 const Index = () => {
-  const [isLoggedIn, setIsLoggedIn] = useState(false); // Temporarily set to true for local testing
+  const { firebaseUser, loading } = useAuth();
   const [activeTab, setActiveTab] = useState("home");
   const [selectedLanguage, setSelectedLanguage] = useState("en");
   const [initialChatQuestion, setInitialChatQuestion] = useState<string | null>(
     null
   );
-
-  const handleLogin = () => {
-    setIsLoggedIn(true);
-  };
 
   const handleLanguageChange = (languageCode: string) => {
     console.log("Language changed to:", languageCode);
@@ -131,14 +128,21 @@ const Index = () => {
     }
   };
 
-  // Temporarily commented out for local testing
-  if (!isLoggedIn) {
+  // Show loading spinner while checking authentication state
+  if (loading) {
     return (
-      <LoginPage
-        onLogin={handleLogin}
-        onLanguageChange={handleLanguageChange}
-      />
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
     );
+  }
+
+  // Show login page if user is not authenticated
+  if (!firebaseUser) {
+    return <LoginPage onLanguageChange={handleLanguageChange} />;
   }
 
   return (

@@ -8,11 +8,10 @@ import GoogleLogin from "./GoogleLogin";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface LoginPageProps {
-  onLogin: () => void;
   onLanguageChange?: (languageCode: string) => void;
 }
 
-const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onLanguageChange }) => {
+const LoginPage: React.FC<LoginPageProps> = ({ onLanguageChange }) => {
   const [loginType, setLoginType] = useState<"email" | "phone">("email");
 
   // Phone states
@@ -38,10 +37,8 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onLanguageChange }) => {
       setLoading(true);
       setError("");
 
-      const firebaseUser = await signInWithGoogleFirebase();
-      if (firebaseUser) {
-        onLogin();
-      }
+      await signInWithGoogleFirebase();
+      // Firebase auth state change will automatically handle navigation
     } catch (err) {
       setError("Failed to sign in with Google");
       console.error("Google authentication error:", err);
@@ -63,22 +60,19 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onLanguageChange }) => {
 
   const handleOtpSubmit = () => {
     if (otp.length === 6) {
-      onLogin();
+      // This is a dummy phone authentication - no actual login
+      console.log("Dummy phone OTP submitted");
     }
   };
 
   const handleVoiceLogin = () => {
-    // Simulate voice recognition
-    setTimeout(() => {
-      onLogin();
-    }, 1000);
+    // Simulate voice recognition - dummy function
+    console.log("Dummy voice login triggered");
   };
 
   const handleBiometricLogin = () => {
-    // Simulate biometric authentication
-    setTimeout(() => {
-      onLogin();
-    }, 500);
+    // Simulate biometric authentication - dummy function
+    console.log("Dummy biometric login triggered");
   };
 
   return (
@@ -163,7 +157,9 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onLanguageChange }) => {
 
                   {/* Google Authentication */}
                   <GoogleLogin
-                    onSuccess={() => onLogin()}
+                    onSuccess={() => {
+                      // Firebase auth state change will automatically handle navigation
+                    }}
                     onError={(error) =>
                       setError("Failed to sign in with Google")
                     }

@@ -31,13 +31,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let mounted = true;
+
     // Listen for Firebase auth changes
     const unsubscribeFirebase = onAuthStateChanged(auth, (firebaseUser) => {
+      if (!mounted) return;
+
+      console.log("🔥 Firebase auth state changed:", {
+        isLoggedIn: !!firebaseUser,
+        userEmail: firebaseUser?.email,
+        userName: firebaseUser?.displayName,
+        userUID: firebaseUser?.uid,
+      });
+
       setFirebaseUser(firebaseUser);
       setLoading(false);
     });
 
     return () => {
+      mounted = false;
       unsubscribeFirebase();
     };
   }, []);

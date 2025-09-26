@@ -6,6 +6,8 @@ import {
   GoogleAuthProvider,
   signInWithPopup,
   signOut,
+  setPersistence,
+  browserLocalPersistence,
 } from "firebase/auth";
 
 // Your web app's Firebase configuration
@@ -86,8 +88,18 @@ if (typeof window !== "undefined") {
 // Initialize Firebase Authentication and get a reference to the service
 export const auth = getAuth(app);
 
+// Set persistence to local storage to maintain auth state across browser sessions
+setPersistence(auth, browserLocalPersistence).catch((error) => {
+  console.error("Error setting auth persistence:", error);
+});
+
 // Initialize Google Auth Provider
 export const googleProvider = new GoogleAuthProvider();
+
+// Configure Google Auth Provider for better user experience
+googleProvider.setCustomParameters({
+  prompt: "select_account",
+});
 
 // Google Sign In function
 export const signInWithGoogle = async () => {
