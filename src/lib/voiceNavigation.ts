@@ -776,7 +776,13 @@ async function callGemini(prompt: string): Promise<VoiceDecision | null> {
   const apiKey =
     (import.meta as any).env?.VITE_GEMINI_API_KEY ||
     "AIzaSyB7u7ECKuSiVP2wHzoi-Ic9haOi2U2dK6Q";
-  if (!apiKey) return null;
+  if (!apiKey) {
+    console.warn("🚨 No Gemini API key found");
+    return null;
+  }
+
+  console.log("🤖 Calling Gemini API for voice navigation...");
+
   try {
     const res = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent`,
@@ -791,11 +797,24 @@ async function callGemini(prompt: string): Promise<VoiceDecision | null> {
         }),
       }
     );
-    if (!res.ok) throw new Error(`Gemini API error ${res.status}`);
+
+    if (!res.ok) {
+      console.error(`❌ Gemini API error ${res.status}:`, await res.text());
+      throw new Error(`Gemini API error ${res.status}`);
+    }
+
     const data = await res.json();
     const text: string = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    console.log("✅ Gemini raw response:", text);
+
     const parsed = safeParseJson(text);
-    if (!parsed) return null;
+    if (!parsed) {
+      console.warn("❌ Failed to parse Gemini JSON response:", text);
+      return null;
+    }
+
+    console.log("🎯 Gemini parsed decision:", parsed);
+
     const decision: VoiceDecision = {
       action: parsed.action === "navigate" ? "navigate" : "chat",
       targetId:
@@ -810,9 +829,11 @@ async function callGemini(prompt: string): Promise<VoiceDecision | null> {
       language: parsed.language,
       queryNormalized: parsed.queryNormalized || undefined,
     };
+
+    console.log("🚀 Final Gemini decision:", decision);
     return decision;
   } catch (err) {
-    console.warn("Gemini call failed:", err);
+    console.warn("❌ Gemini call failed:", err);
     return null;
   }
 }
@@ -822,6 +843,8 @@ export function offlineMatch(
   queryRaw: string,
   language?: string
 ): VoiceDecision {
+  console.log(`🔍 Offline matching: "${queryRaw}" (language: ${language})`);
+
   const q = queryRaw.toLowerCase();
   const map: Array<{ keys: string[]; target: FeatureId }> = [
     // Profile navigation
@@ -1143,35 +1166,62 @@ export function offlineMatch(
   ];
   for (const m of map) {
     if (m.keys.some((k) => q.includes(k))) {
-      return {
+      const result: VoiceDecision = {
         action: "navigate",
         targetId: m.target,
         confidence: 0.6,
         queryNormalized: q,
       };
+      console.log(`✅ Offline match found for "${queryRaw}":`, result);
+      return result;
     }
   }
-  return {
+
+  const fallbackResult: VoiceDecision = {
     action: "chat",
     targetId: "chatbot",
     confidence: 0.4,
     queryNormalized: q,
   };
+  console.log(
+    `⚠️ No offline match found for "${queryRaw}", defaulting to chat:`,
+    fallbackResult
+  );
+  return fallbackResult;
 }
 
 export async function routeFromTranscript(
   transcript: string,
   language?: string
 ): Promise<VoiceDecision> {
+  console.log(
+    `🎤 Voice routing request: "${transcript}" (language: ${language})`
+  );
+
   const prompt = buildPrompt(transcript, language);
+  console.log(
+    "📝 Built prompt for Gemini (first 200 chars):",
+    prompt.substring(0, 200) + "..."
+  );
+
   const ai = await callGemini(prompt);
   if (ai) {
+    console.log("✅ Gemini provided decision:", ai);
+
     // If AI says navigate but target is null, fallback
     if (ai.action === "navigate" && !ai.targetId) {
+      console.log(
+        "⚠️ Gemini said navigate but no targetId, using offline fallback"
+      );
       const off = offlineMatch(transcript, language);
+      console.log("🔄 Offline fallback result:", off);
       return off;
     }
     return ai;
   }
-  return offlineMatch(transcript, language);
+
+  console.log("❌ Gemini failed, using offline fallback");
+  const offline = offlineMatch(transcript, language);
+  console.log("🔄 Offline fallback result:", offline);
+  return offline;
 }
