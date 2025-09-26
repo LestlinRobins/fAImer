@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import LanguageSelector from "./LanguageSelector";
+import GoogleLogin from "./GoogleLogin";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface LoginPageProps {
@@ -39,7 +40,8 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onLanguageChange }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const { signIn, signUp, signInWithGoogle } = useAuth();
+  const { signIn, signUp, signInWithGoogle, signInWithGoogleFirebase } =
+    useAuth();
 
   // Check for email verification parameters
   useEffect(() => {
@@ -158,6 +160,21 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onLanguageChange }) => {
       setLoading(true);
       setError("");
 
+      // Try Firebase Google authentication first
+      try {
+        const firebaseUser = await signInWithGoogleFirebase();
+        if (firebaseUser) {
+          onLogin();
+          return;
+        }
+      } catch (firebaseError) {
+        console.warn(
+          "Firebase Google auth failed, falling back to Supabase:",
+          firebaseError
+        );
+      }
+
+      // Fallback to Supabase Google authentication
       const { error } = await signInWithGoogle();
       if (error) {
         setError(error.message);
@@ -166,6 +183,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onLanguageChange }) => {
       }
     } catch (err) {
       setError("Failed to sign in with Google");
+      console.error("Google authentication error:", err);
     } finally {
       setLoading(false);
     }
@@ -387,15 +405,13 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onLanguageChange }) => {
                 </div>
 
                 {/* Google Authentication */}
-                <Button
-                  onClick={handleGoogleAuth}
-                  disabled={loading}
-                  variant="outline"
+                <GoogleLogin
+                  onSuccess={() => onLogin()}
+                  onError={(error) => setError("Failed to sign in with Google")}
                   className="w-full border-red-300 dark:border-red-600 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950"
-                >
-                  <Chrome className="h-4 w-4 mr-2" />
-                  Sign in with Google
-                </Button>
+                  text="Sign in with Google"
+                  variant="outline"
+                />
               </>
             ) : (
               // Phone Authentication (existing code)

@@ -1,14 +1,23 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { User } from "@supabase/supabase-js";
+import { User as FirebaseUser } from "firebase/auth";
 import { supabase, Profile, getCurrentUser, getProfile } from "@/lib/supabase";
+import {
+  auth,
+  signInWithGoogle as firebaseSignInWithGoogle,
+  logout as firebaseLogout,
+} from "@/lib/firebase";
+import { onAuthStateChanged } from "firebase/auth";
 
 interface AuthContextType {
   user: User | null;
+  firebaseUser: FirebaseUser | null;
   profile: Profile | null;
   loading: boolean;
   signUp: (email: string, password: string, userData?: any) => Promise<any>;
   signIn: (email: string, password: string) => Promise<any>;
   signInWithGoogle: () => Promise<any>;
+  signInWithGoogleFirebase: () => Promise<FirebaseUser>;
   signOut: () => Promise<any>;
   updateProfile: (updates: Partial<Profile>) => Promise<any>;
 }
@@ -27,6 +36,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -46,6 +56,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
     getInitialSession();
 
+    // Listen for Firebase auth changes
+    const unsubscribeFirebase = onAuthStateChanged(auth, (firebaseUser) => {
+      setFirebaseUser(firebaseUser);
+    });
+
     // Listen for auth changes
     const {
       data: { subscription },
@@ -62,11 +77,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+      unsubscribeFirebase();
+    };
   }, []);
 
   const value: AuthContextType = {
     user,
+    firebaseUser,
     profile,
     loading,
     signUp: async (email: string, password: string, userData?: any) => {
@@ -81,12 +100,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       const { signInWithGoogle } = await import("@/lib/supabase");
       return signInWithGoogle();
     },
+    signInWithGoogleFirebase: async () => {
+      const firebaseUser = await firebaseSignInWithGoogle();
+      return firebaseUser;
+    },
     signOut: async () => {
+      // Sign out from both Supabase and Firebase
       const { signOut } = await import("@/lib/supabase");
-      const result = await signOut();
+      const supabaseResult = await signOut();
+
+      if (firebaseUser) {
+        await firebaseLogout();
+      }
+
       setUser(null);
+      setFirebaseUser(null);
       setProfile(null);
-      return result;
+      return supabaseResult;
     },
     updateProfile: async (updates: Partial<Profile>) => {
       if (!user) return { error: "No user logged in" };
