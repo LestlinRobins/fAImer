@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   User,
   MapPin,
@@ -10,11 +10,18 @@ import {
   Globe,
   Sun,
   Moon,
+  ChevronDown,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Switch } from "@/components/ui/switch";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useTheme } from "../contexts/ThemeContext";
 import { useTranslation } from "../contexts/TranslationContext";
 import { useAuth } from "../contexts/AuthContext";
@@ -24,10 +31,38 @@ interface ProfileScreenProps {
   onBack?: () => void;
 }
 
+// Available languages
+const languages = [
+  { code: "en", name: "English", native: "English" },
+  { code: "hi", name: "Hindi", native: "हिंदी" },
+  { code: "ml", name: "Malayalam", native: "മലയാളം" },
+  { code: "kn", name: "Kannada", native: "ಕನ್ನಡ" },
+  { code: "ta", name: "Tamil", native: "தமிழ்" },
+  { code: "te", name: "Telugu", native: "తెలుగు" },
+  { code: "mr", name: "Marathi", native: "मराठी" },
+  { code: "bn", name: "Bengali", native: "বাংলা" },
+];
+
 const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack }) => {
   const { theme, toggleTheme } = useTheme();
-  const { t } = useTranslation();
-  const { firebaseUser } = useAuth();
+  const { t, currentLanguage, setLanguage } = useTranslation();
+  const { firebaseUser, signOut } = useAuth();
+  const [selectedLanguage, setSelectedLanguage] = useState(
+    languages.find((lang) => lang.code === currentLanguage) || languages[0]
+  );
+
+  // Keep selectedLanguage in sync with currentLanguage
+  useEffect(() => {
+    const lang = languages.find((l) => l.code === currentLanguage) || languages[0];
+    setSelectedLanguage(lang);
+  }, [currentLanguage]);
+
+  // Handle language selection
+  const handleLanguageSelect = (language: typeof languages[0]) => {
+    setSelectedLanguage(language);
+    setLanguage(language.code);
+    console.log("Language changed to:", language.name, language.code);
+  };
 
   // Use Firebase user data when available, otherwise use fallback data
   const userData = {
@@ -253,6 +288,66 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack }) => {
         <div className="space-y-2">
           {menuItems.map((item) => {
             const Icon = item.icon;
+            
+            // Special handling for language settings
+            if (item.id === "language") {
+              return (
+                <Card
+                  key={item.id}
+                  className="hover:shadow-md dark:hover:shadow-xl transition-all duration-300 dark:bg-card dark:border-border group"
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-center space-x-3">
+                      <div
+                        className={`p-2 rounded-full bg-gray-100 dark:bg-accent group-hover:scale-105 transition-transform duration-200 ${item.color}`}
+                      >
+                        <Icon className="h-4 w-4" />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="font-medium text-gray-800 dark:text-foreground group-hover:text-primary dark:group-hover:text-primary transition-colors">
+                          {item.title}
+                        </h3>
+                        <p className="text-xs text-gray-500 dark:text-muted-foreground">
+                          {item.subtitle}
+                        </p>
+                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex items-center gap-2 min-w-[120px] justify-between"
+                          >
+                            <span className="text-sm">{selectedLanguage.native}</span>
+                            <ChevronDown className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent className="w-56" align="end">
+                          {languages.map((language) => (
+                            <DropdownMenuItem
+                              key={language.code}
+                              onClick={() => handleLanguageSelect(language)}
+                              className={`flex justify-between items-center cursor-pointer ${
+                                selectedLanguage.code === language.code 
+                                  ? "bg-primary/10 text-primary" 
+                                  : "hover:bg-accent"
+                              }`}
+                            >
+                              <span>{language.name}</span>
+                              <span className="text-muted-foreground font-medium">
+                                {language.native}
+                              </span>
+                            </DropdownMenuItem>
+                          ))}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            }
+            
+            // Default menu item rendering
             return (
               <Card
                 key={item.id}
@@ -299,6 +394,14 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack }) => {
         <Button
           variant="outline"
           className="w-full border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50 hover:border-red-400 dark:hover:border-red-600 transition-all duration-300"
+          onClick={async () => {
+            try {
+              await signOut();
+              console.log("User logged out successfully");
+            } catch (error) {
+              console.error("Logout error:", error);
+            }
+          }}
         >
           <LogOut className="h-4 w-4 mr-2" />
           {t("Logout")}
