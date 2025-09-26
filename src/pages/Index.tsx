@@ -8,7 +8,6 @@ import ProfileScreen from "../components/ProfileScreen";
 import DiagnoseCropScreen from "../components/DiagnoseCropScreen";
 import MarketPricesScreen from "../components/MarketPricesScreen";
 import CropPlannerScreen from "../components/CropPlannerScreen";
-import WeatherAlertsScreen from "../components/WeatherAlertsScreen";
 import FarmerForumScreen from "../components/FarmerForumScreen";
 import KnowledgeCenterScreen from "../components/KnowledgeCenterScreen";
 import KnowledgeScreen from "../components/KnowledgeScreen";
@@ -19,7 +18,6 @@ import AgricultureNewsScreen from "../components/AgricultureNewsScreen";
 import GovtSchemesScreen from "../components/GovtSchemesScreen";
 import LabourerHub from "../components/LabourerHub";
 import FairFarm from "../components/FairFarm";
-import CropWise from "../components/CropWise";
 import BottomNavigation from "../components/BottomNavigation";
 import { useAuth } from "../contexts/AuthContext";
 
@@ -27,6 +25,7 @@ const Index = () => {
   const { firebaseUser, loading } = useAuth();
   const [activeTab, setActiveTab] = useState("home");
   const [selectedLanguage, setSelectedLanguage] = useState("en");
+  const [twinActiveTab, setTwinActiveTab] = useState<"twin" | "recommendations">("twin");
   const [initialChatQuestion, setInitialChatQuestion] = useState<string | null>(
     null
   );
@@ -50,10 +49,22 @@ const Index = () => {
               setInitialChatQuestion(q);
               setActiveTab("chatbot");
             }}
+            onRecommendationsClick={() => {
+              setTwinActiveTab("recommendations");
+              setActiveTab("twin");
+            }}
           />
         );
       case "twin":
-        return <FarmingTwinScreen onBack={() => setActiveTab("home")} />;
+        return (
+          <FarmingTwinScreen 
+            onBack={() => {
+              setActiveTab("home");
+              setTwinActiveTab("twin"); // Reset to twin tab when going back
+            }} 
+            activeTab={twinActiveTab}
+          />
+        );
       case "chatbot":
         return (
           <FarmerAssistantScreen
@@ -79,8 +90,6 @@ const Index = () => {
         return <MarketPricesScreen onBack={() => setActiveTab("home")} />;
       case "planner":
         return <CropPlannerScreen onBack={() => setActiveTab("home")} />;
-      case "weather":
-        return <WeatherAlertsScreen onBack={() => setActiveTab("home")} />;
       case "forum":
         return <FarmerForumScreen onBack={() => setActiveTab("home")} />;
       case "resources":
@@ -110,10 +119,24 @@ const Index = () => {
         return <LabourerHub onBack={() => setActiveTab("resources")} />;
       case "fairfarm":
         return <FairFarm onBack={() => setActiveTab("home")} />;
-      case "cropwise":
-        return <CropWise onBack={() => setActiveTab("home")} />;
       default:
-        return <HomeScreen onFeatureClick={setActiveTab} />;
+        return (
+          <HomeScreen
+            onFeatureClick={(id) => {
+              // Reset any pending chat question unless going to chatbot via voice
+              if (id !== "chatbot") setInitialChatQuestion(null);
+              setActiveTab(id);
+            }}
+            onVoiceChat={(q) => {
+              setInitialChatQuestion(q);
+              setActiveTab("chatbot");
+            }}
+            onRecommendationsClick={() => {
+              setTwinActiveTab("recommendations");
+              setActiveTab("twin");
+            }}
+          />
+        );
     }
   };
 

@@ -7,6 +7,7 @@ import {
   FileText,
   PlayCircle,
   TrendingUp,
+  Users,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,12 +22,15 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import mermaid from "mermaid";
+import CropWise from "./CropWise";
 
 interface FarmingTwinScreenProps {
   onBack?: () => void;
+  activeTab?: "twin" | "recommendations";
 }
 
-const FarmingTwinScreen: React.FC<FarmingTwinScreenProps> = ({ onBack }) => {
+const FarmingTwinScreen: React.FC<FarmingTwinScreenProps> = ({ onBack, activeTab = "twin" }) => {
+  const [currentTab, setCurrentTab] = useState<"twin" | "recommendations">(activeTab);
   const [showRoadmapDialog, setShowRoadmapDialog] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [transcribedText, setTranscribedText] = useState("");
@@ -796,8 +800,8 @@ Return ONLY the mermaid flowchart code without any explanation or code blocks.`;
   return (
     <div className="pb-20 bg-gray-50 dark:bg-background min-h-screen transition-colors duration-300">
       {/* Header */}
-      <div className="bg-gradient-to-r from-green-600 to-blue-600 dark:from-green-700 dark:to-blue-700 text-white p-4 shadow-lg">
-        <div className="flex items-center">
+      <div className="bg-gradient-to-r from-green-600 to-blue-600 dark:from-green-700 dark:to-blue-700 text-white shadow-lg">
+        <div className="flex items-center p-4">
           <Button
             variant="ghost"
             size="icon"
@@ -807,16 +811,44 @@ Return ONLY the mermaid flowchart code without any explanation or code blocks.`;
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div>
-            <h1 className="text-xl font-bold">AI Farming Roadmap Generator</h1>
+            <h1 className="text-xl font-bold">Farming Twin</h1>
             <p className="text-green-100 dark:text-green-200 text-sm">
-              Get personalized farming guidance with voice or text input
+              AI-powered farming guidance and recommendations
             </p>
           </div>
         </div>
+        
+        {/* Tabs */}
+        <div className="flex border-t border-white/20">
+          <button
+            onClick={() => setCurrentTab("twin")}
+            className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+              currentTab === "twin"
+                ? "bg-white/20 text-white border-b-2 border-white"
+                : "text-white/80 hover:text-white hover:bg-white/10"
+            }`}
+          >
+            <Users className="h-4 w-4 inline mr-2" />
+            AI Twin
+          </button>
+          <button
+            onClick={() => setCurrentTab("recommendations")}
+            className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+              currentTab === "recommendations"
+                ? "bg-white/20 text-white border-b-2 border-white"
+                : "text-white/80 hover:text-white hover:bg-white/10"
+            }`}
+          >
+            <Lightbulb className="h-4 w-4 inline mr-2" />
+            Recommendations
+          </button>
+        </div>
       </div>
 
-      <div className="p-4 space-y-4">
-        {/* Farming Roadmap Generator */}
+      {/* Tab Content */}
+      {currentTab === "twin" && (
+        <div className="p-4 space-y-4">
+          {/* Farming Roadmap Generator */}
         <Card className="dark:bg-card dark:border-border shadow-sm dark:shadow-lg transition-all duration-300">
           <CardHeader>
             <CardTitle className="text-base text-foreground flex items-center gap-2">
@@ -967,7 +999,13 @@ Return ONLY the mermaid flowchart code without any explanation or code blocks.`;
             </Dialog>
           </CardContent>
         </Card>
-      </div>
+        </div>
+      )}
+
+      {/* Recommendations Tab */}
+      {currentTab === "recommendations" && (
+        <CropWise onBack={() => setCurrentTab("twin")} />
+      )}
     </div>
   );
 };

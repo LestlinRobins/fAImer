@@ -2,7 +2,7 @@
 // Also includes an offline fallback matcher when API is unavailable
 
 export type VoiceDecision = {
-  action: "navigate" | "chat";
+  action: "navigate" | "chat" | "weather";
   targetId: string | null; // one of known feature IDs when action === 'navigate'
   confidence: number; // 0..1
   reason?: string;
@@ -538,25 +538,28 @@ export const FEATURE_KB: Array<{
   // Quick actions mapped to nearest features
   {
     id: "spraying",
-    title: "Crop Wise (Spraying)",
-    description: "Guidance for spraying schedules and chemicals.",
+    title: "Crop Recommendations (CropWise)",
+    description: "Smart crop recommendations, variety selection, and farming guidance based on location and conditions.",
     examples: [
-      "spraying guide",
-      "when to spray",
-      "sprayer dosage",
-      "സ്പ്രേയിംഗ് ഗൈഡ്",
-      "എപ്പോൾ സ്പ്രേ ചെയ്യണം",
-      "സ്പ്രേയർ ഡോസേജ്",
+      "crop recommendations",
+      "which crop to plant",
+      "best crops for my area",
+      "crop wise suggestions",
+      "വിള ശുപാർശകൾ",
+      "ഏത് വിള നടാം",
+      "എന്റെ പ്രദേശത്തിനുള്ള മികച്ച വിളകൾ",
     ],
     synonyms: [
-      "spray",
-      "spraying",
-      "chemical spray",
-      "സ്പ്രേ",
-      "സ്പ്രേയിംഗ്",
-      "രാസ സ്പ്രേ",
+      "recommendations",
+      "crop suggestions",
+      "crop advice",
+      "best crops",
+      "suitable crops",
+      "ശുപാർശകൾ",
+      "വിള നിർദ്ദേശങ്ങൾ",
+      "വിള ഉപദേശം",
     ],
-    navigatesTo: "knowledge",
+    navigatesTo: "twin",
   },
   {
     id: "mapping",
@@ -1208,6 +1211,19 @@ export async function routeFromTranscript(
   if (ai) {
     console.log("✅ Gemini provided decision:", ai);
 
+    // Special handling for weather requests - return weather action instead of navigate
+    if (ai.action === "navigate" && ai.targetId === "weather") {
+      console.log("🌤️ Converting weather navigation to weather action");
+      return {
+        action: "weather",
+        targetId: null,
+        confidence: ai.confidence,
+        reason: ai.reason,
+        language: ai.language,
+        queryNormalized: ai.queryNormalized,
+      };
+    }
+
     // If AI says navigate but target is null, fallback
     if (ai.action === "navigate" && !ai.targetId) {
       console.log(
@@ -1215,6 +1231,20 @@ export async function routeFromTranscript(
       );
       const off = offlineMatch(transcript, language);
       console.log("🔄 Offline fallback result:", off);
+      
+      // Handle weather in offline fallback too
+      if (off.action === "navigate" && off.targetId === "weather") {
+        console.log("🌤️ Converting offline weather navigation to weather action");
+        return {
+          action: "weather",
+          targetId: null,
+          confidence: off.confidence,
+          reason: off.reason,
+          language: off.language,
+          queryNormalized: off.queryNormalized,
+        };
+      }
+      
       return off;
     }
     return ai;
@@ -1223,5 +1253,19 @@ export async function routeFromTranscript(
   console.log("❌ Gemini failed, using offline fallback");
   const offline = offlineMatch(transcript, language);
   console.log("🔄 Offline fallback result:", offline);
+  
+  // Handle weather in offline fallback
+  if (offline.action === "navigate" && offline.targetId === "weather") {
+    console.log("🌤️ Converting offline weather navigation to weather action");
+    return {
+      action: "weather",
+      targetId: null,
+      confidence: offline.confidence,
+      reason: offline.reason,
+      language: offline.language,
+      queryNormalized: offline.queryNormalized,
+    };
+  }
+  
   return offline;
 }

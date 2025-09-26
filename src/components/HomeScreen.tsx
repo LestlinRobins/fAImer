@@ -14,7 +14,6 @@ import {
   FileText,
   MapPin,
   SprayCan,
-  Map,
   Wheat,
   LifeBuoy,
   PlayCircle,
@@ -24,6 +23,8 @@ import {
   Wind,
   Eye,
   X,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -33,13 +34,13 @@ import { Badge } from "@/components/ui/badge";
 import { useTranslation } from "@/contexts/TranslationContext";
 import { routeFromTranscript } from "@/lib/voiceNavigation";
 import { useAuth } from "@/contexts/AuthContext";
-import CropTodoList from "./CropTodoList";
 // Crop Wise icon now served from public uploads
 // Mapping icon now served from public uploads
 
 interface HomeScreenProps {
   onFeatureClick: (featureId: string) => void;
   onVoiceChat?: (question: string) => void; // open chatbot with initial question
+  onRecommendationsClick?: () => void; // special handler for recommendations
 }
 
 interface WeatherData {
@@ -61,6 +62,7 @@ interface LocationData {
 const HomeScreen: React.FC<HomeScreenProps> = ({
   onFeatureClick,
   onVoiceChat,
+  onRecommendationsClick,
 }) => {
   const { firebaseUser } = useAuth();
   const { toast } = useToast();
@@ -595,6 +597,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
       title: getTranslatedText("Scan Pest"),
       icon: Camera,
       color: "bg-pink-100 text-pink-600 dark:bg-pink-950 dark:text-pink-300",
+      image: "/lovable-uploads/f2bb06a9-32a5-4aa1-bf76-447eb1fb0c64.png",
     },
     {
       id: "twin",
@@ -652,18 +655,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
 
   // Quick actions (placeholders)
   const quickActions = [
-    {
-      id: "spraying",
-      label: currentLanguage === "ml" ? "സ്പ്രേയിംഗ്" : "Crop Wise",
-      icon: SprayCan,
-      image: "/lovable-uploads/f46a346c-43fa-4c4a-ac6d-c1652fe31702.png",
-    },
-    {
-      id: "mapping",
-      label: currentLanguage === "ml" ? "മാപ്പിംഗ്" : "Fair Farm",
-      icon: Map,
-      image: "/lovable-uploads/33d82a5a-6adb-4fb2-a720-33afcbfb4f47.png",
-    },
+    // FairFarm has been moved to Market Hub -> Sell tab
   ];
 
   // Feature content cards with custom generated images
@@ -702,6 +694,70 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
     },
   ];
 
+  // Announcements and alerts data
+  const announcements = [
+    {
+      id: "drought-alert",
+      type: "Climate Alert",
+      title: currentLanguage === "ml" ? "വരൾച്ച മുന്നറിയിപ്പ്" : "Drought Warning",
+      description: currentLanguage === "ml" ? "അടുത്ത 15 ദിവസത്തേക്ക് മഴ പ്രതീക്ഷിക്കുന്നില്ല. ജലസംരക്ഷണ നടപടികൾ സ്വീകരിക്കുക." : "No rainfall expected for the next 15 days. Take water conservation measures.",
+      severity: "High",
+      date: "Today",
+      icon: AlertTriangle,
+      bgColor: "bg-red-50 dark:bg-red-950/20",
+      borderColor: "border-red-200 dark:border-red-800",
+      textColor: "text-red-700 dark:text-red-300"
+    },
+    {
+      id: "govt-scheme",
+      type: "Government Scheme",
+      title: currentLanguage === "ml" ? "പ്രധാനമന്ത്രി കിസാൻ സമ്മാൻ നിധി" : "PM Kisan Samman Nidhi",
+      description: currentLanguage === "ml" ? "₹2000 അടുത്ത ഡോസ് ഡിസംബർ 15ന് റിലീസ് ചെയ്യും. നിങ്ങളുടെ KYC അപ്ഡേറ്റ് ചെയ്യുക." : "Next installment of ₹2000 will be released on Dec 15. Update your KYC.",
+      severity: "Medium",
+      date: "2 days ago",
+      icon: FileText,
+      bgColor: "bg-blue-50 dark:bg-blue-950/20",
+      borderColor: "border-blue-200 dark:border-blue-800",
+      textColor: "text-blue-700 dark:text-blue-300"
+    },
+    {
+      id: "pest-outbreak",
+      type: "Community Alert",
+      title: currentLanguage === "ml" ? "കീടബാധ മുന്നറിയിപ്പ്" : "Pest Outbreak Warning",
+      description: currentLanguage === "ml" ? "സമീപ പ്രദേശങ്ങളിൽ തവിട്ടുപ്പൻ കീടത്തിന്റെ ആക്രമണം. ഉടനടി സ്പ്രേയിംഗ് നടത്തുക." : "Brown plant hopper attack reported in nearby areas. Apply immediate spraying.",
+      severity: "High",
+      date: "1 day ago",
+      icon: SprayCan,
+      bgColor: "bg-orange-50 dark:bg-orange-950/20",
+      borderColor: "border-orange-200 dark:border-orange-800",
+      textColor: "text-orange-700 dark:text-orange-300"
+    },
+    {
+      id: "weather-forecast",
+      type: "Weather Alert",
+      title: currentLanguage === "ml" ? "മഴ പ്രവചനം" : "Rainfall Forecast",
+      description: currentLanguage === "ml" ? "അടുത്ത 3 ദിവസത്തിൽ 50mm മഴ പ്രതീക്ഷിക്കുന്നു. വിളവെടുപ്പിന് തയ്യാറാകുക." : "Moderate rainfall of 50mm expected in next 3 days. Prepare for harvesting.",
+      severity: "Low",
+      date: "3 hours ago",
+      icon: Droplets,
+      bgColor: "bg-green-50 dark:bg-green-950/20",
+      borderColor: "border-green-200 dark:border-green-800",
+      textColor: "text-green-700 dark:text-green-300"
+    },
+    {
+      id: "market-price",
+      type: "Market Update",
+      title: currentLanguage === "ml" ? "വില വർധന" : "Price Surge",
+      description: currentLanguage === "ml" ? "തക്കാളി വില ₹45/kg എത്തി. വിൽപന അവസരം പ്രയോജനപ്പെടുത്തുക." : "Tomato prices reached ₹45/kg. Take advantage of selling opportunity.",
+      severity: "Low",
+      date: "5 hours ago",
+      icon: ShoppingCart,
+      bgColor: "bg-purple-50 dark:bg-purple-950/20",
+      borderColor: "border-purple-200 dark:border-purple-800",
+      textColor: "text-purple-700 dark:text-purple-300"
+    }
+  ];
+
   // Basic SEO for this screen
   useEffect(() => {
     document.title =
@@ -718,6 +774,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   // Weather Alert Dialog state
   const [isWeatherAlertOpen, setIsWeatherAlertOpen] = useState(false);
   const [selectedAlert, setSelectedAlert] = useState<any>(null);
+  
+  // Announcement carousel state
+  const [currentAnnouncementIndex, setCurrentAnnouncementIndex] = useState(0);
   
   const recognitionRef = useRef<any>(null);
   const ensureRecognition = () => {
@@ -826,10 +885,26 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
             currentLanguage
           );
           if (decision.action === "navigate" && decision.targetId) {
-            onFeatureClick(decision.targetId);
+            // Special handling for recommendation queries
+            if (decision.targetId === "twin" && isRecommendationQuery(finalTranscript)) {
+              if (onRecommendationsClick) {
+                onRecommendationsClick();
+              } else {
+                onFeatureClick(decision.targetId);
+              }
+            } else {
+              onFeatureClick(decision.targetId);
+            }
             toast({
               title: getVoiceText("navigating"),
               description: `${decision.targetId} • ${(decision.confidence * 100).toFixed(0)}%`,
+            });
+          } else if (decision.action === "weather") {
+            // Handle weather requests by opening the weather popup
+            handleCurrentWeatherClick();
+            toast({
+              title: currentLanguage === "ml" ? "കാലാവസ്ഥ വിവരങ്ങൾ" : "Weather Information",
+              description: `${currentLanguage === "ml" ? "കാലാവസ്ഥാ പോപ്പപ്പ് തുറക്കുന്നു" : "Opening weather popup"} • ${(decision.confidence * 100).toFixed(0)}%`,
             });
           } else {
             // Route to chatbot with the question
@@ -879,6 +954,38 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
       });
     }
   };
+
+  // Helper function to detect recommendation-related queries
+  const isRecommendationQuery = (query: string): boolean => {
+    const recommendationKeywords = [
+      "recommendation", "suggest", "advice", "which crop", "best crop", "suitable crop",
+      "cropwise", "crop wise", "what to plant", "should I grow", "recommend",
+      "ശുപാർശ", "നിർദ്ദേശ", "ഏത് വിള", "മികച്ച വിള", "അനുയോജ്യമായ വിള", "എന്ത് നടാം"
+    ];
+    
+    const lowerQuery = query.toLowerCase();
+    return recommendationKeywords.some(keyword => lowerQuery.includes(keyword.toLowerCase()));
+  };
+
+  // Announcement carousel navigation functions
+  const goToPreviousAnnouncement = () => {
+    setCurrentAnnouncementIndex((prev) => 
+      prev === 0 ? announcements.length - 1 : prev - 1
+    );
+  };
+
+  const goToNextAnnouncement = () => {
+    setCurrentAnnouncementIndex((prev) => 
+      prev === announcements.length - 1 ? 0 : prev + 1
+    );
+  };
+
+  // Auto-advance carousel every 10 seconds
+  useEffect(() => {
+    const interval = setInterval(goToNextAnnouncement, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <div className="pb-20 bg-background min-h-screen transition-colors duration-300">
       {/* Greeting Banner */}
@@ -990,149 +1097,74 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
       )}
 
       <div className="p-4 space-y-6">
-        {/* Crop Todo List */}
-        <CropTodoList language={currentLanguage} />
-
-        {/* Quick Actions */}
+        {/* Announcements & Alerts Carousel */}
         <div>
-          <div className="grid grid-cols-2 gap-3">
-            {quickActions.slice(0, 3).map((action) => {
-              const Icon = action.icon;
-              return (
-                <button
-                  key={action.id}
-                  onClick={() => {
-                    // Handle CropWise and Fair Farm navigation
-                    if (action.id === "mapping") {
-                      onFeatureClick("fairfarm");
-                    } else if (action.id === "spraying") {
-                      onFeatureClick("cropwise");
-                    } else {
-                      // Show placeholder toast for other actions
-                      toast({
-                        title: action.label,
-                        description:
-                          currentLanguage === "ml"
-                            ? "പ്ലേസ്‌ഹോൾഡർ - നിങ്ങൾ പിന്നീട് പുതുക്കാം"
-                            : "Placeholder - you can update later",
-                      });
-                    }
-                  }}
-                  className="flex flex-col items-center p-3 rounded-[10%] bg-muted text-card-foreground hover:shadow-lg transition-all duration-300 border-0 overflow-hidden"
-                >
-                  <div className="w-12 h-12 text-primary flex items-center justify-center mx-auto mb-2">
-                    {"image" in action && action.image ? (
-                      <img
-                        src={action.image as string}
-                        alt={`${action.label} icon`}
-                        className="h-10 w-10 md:h-12 md:w-12 object-contain-center"
-                        loading="lazy"
-                      />
-                    ) : (
-                      <Icon className="h-6 w-6" />
-                    )}
+          <h2 className="text-lg font-semibold text-foreground mb-4 transition-colors duration-300">
+            {currentLanguage === "ml" ? "അറിയിപ്പുകളും മുന്നറിയിപ്പുകളും" : "Announcements & Alerts"}
+          </h2>
+          
+          <div className="relative">
+            {/* Current Announcement Card */}
+            <Card className={`relative overflow-hidden transition-all duration-300 ${announcements[currentAnnouncementIndex].bgColor} ${announcements[currentAnnouncementIndex].borderColor}`}>
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center space-x-2">
+                    <div className={`p-1.5 rounded-full ${announcements[currentAnnouncementIndex].bgColor}`}>
+                      {React.createElement(announcements[currentAnnouncementIndex].icon, { 
+                        className: `w-4 h-4 ${announcements[currentAnnouncementIndex].textColor}` 
+                      })}
+                    </div>
+                    <Badge 
+                      variant={announcements[currentAnnouncementIndex].severity === "High" ? "destructive" : 
+                              announcements[currentAnnouncementIndex].severity === "Medium" ? "default" : "secondary"}
+                      className="text-xs"
+                    >
+                      {announcements[currentAnnouncementIndex].type}
+                    </Badge>
                   </div>
-                  <span className="font-medium text-foreground text-xs">
-                    {action.label}
+                  <span className="text-xs text-muted-foreground">
+                    {announcements[currentAnnouncementIndex].date}
                   </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Feature Content (static) */}
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="hidden md:block text-lg font-semibold text-foreground">
-              {currentLanguage === "ml" ? "ഫീച്ചർ കണ്ടന്റ്" : "Feature Content"}
-            </h2>
-          </div>
-          <div className="space-y-2">
-            {/* Animated rows with uniform heights and slower speed; 4:6 alternating widths preserved */}
-            <div
-              className="relative overflow-hidden rounded-md"
-              style={{
-                containerType: "inline-size",
-              }}
-            >
-              <div
-                className="marquee marquee-right gap-2 md:gap-3 items-stretch"
-                style={{
-                  animationDuration: "30s",
-                }}
+                </div>
+                
+                <h3 className={`font-semibold text-base mb-2 ${announcements[currentAnnouncementIndex].textColor}`}>
+                  {announcements[currentAnnouncementIndex].title}
+                </h3>
+                
+                <p className="text-sm text-foreground/80 leading-relaxed">
+                  {announcements[currentAnnouncementIndex].description}
+                </p>
+              </CardContent>
+              
+              {/* Navigation Arrows */}
+              <button 
+                onClick={goToPreviousAnnouncement}
+                className="absolute left-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-white/40 hover:bg-white shadow-sm transition-all duration-200"
               >
-                {[...featureContent, ...featureContent].map((item, idx) => (
-                  <div
-                    key={`top-${item.id}-${idx}`}
-                    className="shrink-0"
-                    style={{
-                      width: idx % 2 === 0 ? "40cqw" : "60cqw",
-                    }}
-                  >
-                    <Card
-                      className="overflow-hidden hover:shadow-lg transition-shadow rounded-md h-full cursor-pointer"
-                      onClick={() => onFeatureClick("knowledge")}
-                    >
-                      <div className="bg-muted relative h-28 md:h-32">
-                        <img
-                          src={item.image}
-                          alt={item.title}
-                          className="w-full h-full object-cover-center"
-                          loading="lazy"
-                        />
-                      </div>
-                      <CardContent className="p-2 md:p-3">
-                        <h3 className="text-xs md:text-sm font-medium text-foreground truncate">
-                          {item.title}
-                        </h3>
-                      </CardContent>
-                    </Card>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div
-              className="relative overflow-hidden rounded-md"
-              style={{
-                containerType: "inline-size",
-              }}
-            >
-              <div
-                className="marquee marquee-left gap-2 md:gap-3 items-stretch"
-                style={{
-                  animationDuration: "30s",
-                }}
+                <ChevronLeft className="w-4 h-4 text-gray-600" />
+              </button>
+              
+              <button 
+                onClick={goToNextAnnouncement}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-white/80 hover:bg-white shadow-sm transition-all duration-200"
               >
-                {[...featureContent, ...featureContent].map((item, idx) => (
-                  <div
-                    key={`bottom-${item.id}-${idx}`}
-                    className="shrink-0"
-                    style={{
-                      width: idx % 2 === 0 ? "40cqw" : "60cqw",
-                    }}
-                  >
-                    <Card
-                      className="overflow-hidden hover:shadow-lg transition-shadow rounded-md h-full cursor-pointer"
-                      onClick={() => onFeatureClick("knowledge")}
-                    >
-                      <div className="bg-muted relative h-28 md:h-32">
-                        <img
-                          src={item.image}
-                          alt={item.title}
-                          className="w-full h-full object-cover-center"
-                          loading="lazy"
-                        />
-                      </div>
-                      <CardContent className="p-2 md:p-3">
-                        <h3 className="text-xs md:text-sm font-medium text-foreground truncate">
-                          {item.title}
-                        </h3>
-                      </CardContent>
-                    </Card>
-                  </div>
-                ))}
-              </div>
+                <ChevronRight className="w-4 h-4 text-gray-600" />
+              </button>
+            </Card>
+            
+            {/* Carousel Indicators */}
+            <div className="flex justify-center space-x-2 mt-3">
+              {announcements.map((_, index) => (
+                <button
+                  key={index}
+                  onClick={() => setCurrentAnnouncementIndex(index)}
+                  className={`w-2 h-2 rounded-full transition-all duration-200 ${
+                    index === currentAnnouncementIndex 
+                      ? 'bg-primary w-6' 
+                      : 'bg-muted-foreground/30'
+                  }`}
+                />
+              ))}
             </div>
           </div>
         </div>

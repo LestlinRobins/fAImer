@@ -447,9 +447,7 @@ const CropWise: React.FC<CropWiseProps> = ({ onBack }) => {
       <div className="pb-20 bg-background min-h-screen">
         <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border">
           <div className="flex items-center gap-4 p-4">
-            <Button variant="ghost" size="icon" onClick={onBack}>
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
+            
             <div>
               <h1 className="text-xl font-bold text-foreground">
                 {getTranslatedText("CropWise Recommendations")}
@@ -485,9 +483,6 @@ const CropWise: React.FC<CropWiseProps> = ({ onBack }) => {
       {/* Header */}
       <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border">
         <div className="flex items-center gap-4 p-4">
-          <Button variant="ghost" size="icon" onClick={onBack}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
           <div className="flex-1">
             <h1 className="text-xl font-bold text-foreground">
               {getTranslatedText("CropWise Recommendations")}

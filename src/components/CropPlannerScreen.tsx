@@ -19,6 +19,8 @@ import {
   BarChart3,
   Target,
   Droplets,
+  CheckCircle,
+  Circle,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -31,6 +33,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { useTranslation } from "@/contexts/TranslationContext";
 
 interface CropPlannerScreenProps {
   onBack?: () => void;
@@ -60,7 +63,8 @@ interface CropData {
 }
 
 const CropPlannerScreen: React.FC<CropPlannerScreenProps> = ({ onBack }) => {
-  // Crop database with market data and agricultural info
+  const { currentLanguage } = useTranslation();
+  
   // Crop database with market data and agricultural info
   const cropDatabase: Record<string, CropData> = {
     Tomato: {
@@ -193,6 +197,9 @@ const CropPlannerScreen: React.FC<CropPlannerScreenProps> = ({ onBack }) => {
   ]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<CropPlan | null>(null);
+  const [isTodoModalOpen, setIsTodoModalOpen] = useState(false);
+  const [selectedCropForTodo, setSelectedCropForTodo] = useState<CropPlan | null>(null);
+  const [cropTodoList, setCropTodoList] = useState<any[]>([]);
   const [formData, setFormData] = useState<{
     crop: string;
     area: string;
@@ -617,6 +624,20 @@ const CropPlannerScreen: React.FC<CropPlannerScreenProps> = ({ onBack }) => {
     }
   };
 
+  const handleViewTodoList = async (plan: CropPlan) => {
+    setSelectedCropForTodo(plan);
+    setIsTodoModalOpen(true);
+    
+    // Generate todo list for the selected crop
+    try {
+      const todoList = await generateCropTodoList(plan.crop, plan.area);
+      setCropTodoList(todoList || []);
+    } catch (error) {
+      console.error("Error generating todo list:", error);
+      setCropTodoList([]);
+    }
+  };
+
   return (
     <div className="pb-20 bg-background min-h-screen transition-colors duration-300">
       {/* Header */}
@@ -693,39 +714,6 @@ const CropPlannerScreen: React.FC<CropPlannerScreenProps> = ({ onBack }) => {
             </CardContent>
           </Card>
         </div>
-
-        {/* Smart Reminders */}
-        {analytics.pendingTasks.length > 0 && (
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm flex items-center gap-2 text-foreground">
-                <Bell className="h-4 w-4 text-orange-600" />
-                Upcoming Tasks ({analytics.pendingTasks.length})
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <div className="space-y-2">
-                {analytics.pendingTasks.slice(0, 3).map((task, idx) => (
-                  <div
-                    key={idx}
-                    className="flex items-center gap-2 text-sm p-2 rounded-lg bg-muted/50"
-                  >
-                    {task.type === "watering" && (
-                      <Droplets className="h-4 w-4 text-blue-600" />
-                    )}
-                    {task.type === "fertilizer" && (
-                      <Sprout className="h-4 w-4 text-green-600" />
-                    )}
-                    {task.type === "harvest" && (
-                      <Calendar className="h-4 w-4 text-orange-600" />
-                    )}
-                    <span className="text-foreground">{task.message}</span>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
 
         {/* Enhanced Crop Plans List */}
         <div className="space-y-3">
@@ -809,18 +797,18 @@ const CropPlannerScreen: React.FC<CropPlannerScreenProps> = ({ onBack }) => {
                       </div>
                     </div>
 
-                    {/* Crop Health Tips */}
-                    {cropData && cropData.tips && (
-                      <div className="bg-muted/50 p-2 rounded-lg text-xs">
-                        <div className="flex items-center gap-1 text-foreground font-medium mb-1">
-                          <AlertCircle className="h-3 w-3 text-orange-600" />
-                          Monthly Tip
-                        </div>
-                        <div className="text-muted-foreground">
-                          {cropData.tips[0]}
-                        </div>
-                      </div>
-                    )}
+                    {/* View Todo List Button */}
+                    <div className="mt-3">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full text-sm"
+                        onClick={() => handleViewTodoList(plan)}
+                      >
+                        <Calendar className="h-4 w-4 mr-2" />
+                        View Todo List for {plan.crop}
+                      </Button>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -879,6 +867,54 @@ const CropPlannerScreen: React.FC<CropPlannerScreenProps> = ({ onBack }) => {
             >
               <Save className="h-4 w-4 mr-2" />
               {selectedPlan ? "Update Plan" : "Save Plan"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Todo List Modal Dialog */}
+      <Dialog open={isTodoModalOpen} onOpenChange={setIsTodoModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {selectedCropForTodo?.crop} Todo List
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4 max-h-96 overflow-y-auto">
+            {cropTodoList.length > 0 ? (
+              <div className="space-y-3">
+                {cropTodoList.map((dayTodo, dayIndex) => (
+                  <div key={dayIndex} className="space-y-2">
+                    <h3 className="font-semibold text-sm text-foreground">
+                      Day {dayTodo.day}
+                    </h3>
+                    <div className="space-y-2 pl-4">
+                      {dayTodo.tasks.map((task: string, taskIndex: number) => (
+                        <div
+                          key={taskIndex}
+                          className="flex items-start gap-2 text-sm"
+                        >
+                          <Circle className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+                          <span className="text-foreground">{task}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground">
+                  No todo list available for this crop
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className="flex justify-end pt-4">
+            <Button variant="outline" onClick={() => setIsTodoModalOpen(false)}>
+              Close
             </Button>
           </div>
         </DialogContent>

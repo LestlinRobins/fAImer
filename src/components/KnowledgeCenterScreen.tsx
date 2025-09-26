@@ -50,13 +50,13 @@ const KnowledgeCenterScreen: React.FC<KnowledgeCenterScreenProps> = ({
               image:
                 "/lovable-uploads/3f6b7ec9-3d85-4141-822f-70464f2c5be4.png",
             },
-            {
-              id: "scan",
-              title: "Pest Scanner",
-              icon: Camera,
-              image:
-                "/lovable-uploads/f2bb06a9-32a5-4aa1-bf76-447eb1fb0c64.png",
-            },
+            // {
+            //   id: "scan",
+            //   title: "Pest Scanner",
+            //   icon: Camera,
+            //   image:
+            //     "/lovable-uploads/f2bb06a9-32a5-4aa1-bf76-447eb1fb0c64.png",
+            // },
             {
               id: "expense",
               title: "Expense Tracker",
