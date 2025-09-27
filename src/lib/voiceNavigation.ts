@@ -1,8 +1,42 @@
-// Voice navigation utilities using OFFLINE LLM for robust intent parsing
-// Uses Transformers.js for lightweight, browser-native AI inference
+// Voice navigation utilities using WebLLM for robust intent parsing
+// Uses WebLLM for lightweight, browser-native AI inference with WebGPU acceleration
 // Includes keyword fallback for maximum reliability
 
-import { pipeline } from "@xenova/transformers";
+type WebLLMModule = typeof import("@mlc-ai/web-llm");
+
+let webLLMModulePromise: Promise<WebLLMModule> | null = null;
+
+async function loadWebLLMModule(): Promise<WebLLMModule> {
+  if (!webLLMModulePromise) {
+    webLLMModulePromise = (async () => {
+      try {
+        return await import("@mlc-ai/web-llm");
+      } catch (npmError) {
+        console.warn(
+          "⚠️ Failed to import @mlc-ai/web-llm via bundler, falling back to CDN",
+          npmError
+        );
+        // eslint-disable-next-line no-eval
+        const fallbackModule = (await (0, eval)(
+          "import('https://esm.run/@mlc-ai/web-llm')"
+        )) as WebLLMModule;
+        return fallbackModule;
+      }
+    })();
+  }
+
+  return webLLMModulePromise;
+}
+
+const MODEL_PREFERENCE_ORDER = [
+  "Phi-3-mini-4k-instruct-q4f32_1-MLC",
+  "Phi-3-mini-4k-instruct-q4f16_1-MLC",
+  "Qwen2-0.5B-Instruct-q4f16_1-MLC",
+  "Llama-3.2-1B-Instruct-q4f32_1-MLC",
+  "Llama-3.1-8B-Instruct-q4f32_1-1k",
+];
+
+const MODEL_LOAD_TIMEOUT_MS = 20000;
 
 export type VoiceDecision = {
   action: "navigate" | "chat" | "weather" | "popup" | "tab";
@@ -18,996 +52,238 @@ export type VoiceDecision = {
 export const KNOWN_FEATURE_IDS = [
   "home",
   "twin",
-  "chatbot",
-  "notifications",
-  "profile",
   "diagnose",
-  "market",
   "planner",
-  "weather",
-  "forum",
-  "resources",
   "knowledge",
-  "buy",
-  "scan",
   "expense",
+  "weather",
+  "farmer-assistant",
+  "chatbot",
+  "alerts",
   "news",
+  "forum",
   "schemes",
-  "labourers",
-  "fairfarm",
-] as const;
-
-// Sub-actions for features that have tabs, popups, or specific sections
-export const FEATURE_SUB_ACTIONS = {
-  twin: ["recommendations", "twin", "digital-twin"],
-  weather: ["current", "alerts", "forecast"],
-  resources: [
-    "knowledge",
-    "buy",
-    "scan",
-    "expense",
-    "news",
-    "schemes",
-    "labourers",
-  ],
-  notifications: ["weather", "alerts", "updates"],
-  profile: ["settings", "account", "preferences"],
-  market: ["prices", "trends", "alerts"],
-  planner: ["calendar", "tasks", "schedule"],
-  forum: ["posts", "discussions", "create"],
-  diagnose: ["camera", "upload", "history"],
-  scan: ["pest", "disease", "camera"],
-  buy: ["seeds", "fertilizers", "tools", "pesticides"],
-  expense: ["add", "view", "summary", "reports"],
-} as const;
-
-type FeatureId = (typeof KNOWN_FEATURE_IDS)[number];
-
-// A comprehensive knowledge base to help Gemini map natural language to app destinations
-// Includes sub-actions for tabs, popups, and specific functionality within features
-export const FEATURE_KB: Array<{
-  id: FeatureId | "support" | "spraying" | "mapping" | "seeding";
-  title: string;
-  description: string;
-  examples: string[];
-  synonyms: string[];
-  navigatesTo: FeatureId; // normalized target within app
-  subActions?: string[]; // possible sub-actions/tabs/popups within this feature
-  actions?: string[]; // verbs/intents that are possible under this feature
-}> = [
-  {
-    id: "home",
-    title: "Home",
-    description:
-      "Main dashboard with weather, quick actions, and featured content.",
-    examples: [
-      "go home",
-      "open dashboard",
-      "main screen",
-      "ഹോമിലേക്ക് പോകുക",
-      "ഡാഷ്ബോർഡ് തുറക്കുക",
-      "മുഖ്യ സ്ക്രീൻ",
-    ],
-    synonyms: [
-      "dashboard",
-      "main",
-      "start",
-      "homepage",
-      "ഡാഷ്ബോർഡ്",
-      "ഹോം",
-      "മുഖ്യം",
-      "തുടക്കം",
-    ],
-    navigatesTo: "home",
-  },
-  {
-    id: "diagnose",
-    title: "Diagnose Crop",
-    description: "Identify plant diseases or issues and get remedies.",
-    examples: [
-      "crop doctor",
-      "plant disease help",
-      "diagnose my crop",
-      "my tomato plant has spots",
-      "there's something wrong with my leaves",
-      "plant looks sick",
-      "yellow leaves on my crop",
-      "white powder on leaves",
-      "insects eating my plants",
-      // Comprehensive Malayalam examples
-      "വിള രോഗനിർണയം",
-      "ചെടിയുടെ രോഗം കണ്ടെത്തുക",
-      "വിള ഡോക്ടർ",
-      "എന്റെ തക്കാളിയിൽ പുള്ളികൾ",
-      "ഇലകളിൽ എന്തോ പ്രശ്നം",
-      "ചെടി രോഗിച്ചത് പോലെ",
-      "വിളയിൽ മഞ്ഞ ഇലകൾ",
-      "ഇലകളിൽ വെള്ള പൊടി",
-      "കീടങ്ങൾ ചെടി തിന്നുന്നു",
-      "എന്റെ പയറിന് വെള്ളക്കാശു",
-      "തക്കാളിക്ക് ഇലപ്പുള്ളി രോഗം",
-      "മുളകിന്റെ ഇല കറുത്തുപോയി",
-      "വാഴയിൽ പുഴു കയറി",
-      "നെല്ലിന്റെ തല കുനിഞ്ഞു",
-      "ചെടിയുടെ വേര് അഴുകി",
-      "വിളയുടെ വളർച്ച മന്ദഗതിയിൽ",
-      "ഇലകൾ ഉണങ്ങി വരണ്ടുപോകുന്നു",
-      "ചെടിയിൽ പഴുപ്പ് കാണുന്നു",
-    ],
-    synonyms: [
-      "diagnosis",
-      "doctor",
-      "identify disease",
-      "crop issues",
-      "plant problems",
-      "leaf spots",
-      "plant disease",
-      "sick plant",
-      "crop disease",
-      // Malayalam synonyms
-      "രോഗനിർണയം",
-      "ഡോക്ടർ",
-      "രോഗം കണ്ടെത്തുക",
-      "വിള പ്രശ്നങ്ങൾ",
-      "ചെടിയുടെ പ്രശ്നം",
-      "ഇലയിലെ പുള്ളികൾ",
-      "ചെടിയുടെ രോഗം",
-      "രോഗിച്ച ചെടി",
-      "വിള രോഗം",
-      "വെള്ളക്കാശു",
-      "ഇലപ്പുള്ളി",
-      "കീടങ്ങൾ",
-      "പുഴു",
-      "അഴുകൽ",
-    ],
-    navigatesTo: "diagnose",
-    actions: ["diagnose", "scan leaves", "upload photo", "get remedy"],
-  },
-  {
-    id: "market",
-    title: "Market Prices",
-    description: "See mandi prices and market trends for crops.",
-    examples: [
-      "today price for tomato",
-      "mandi rates",
-      "market prices",
-      "what's the price of rice",
-      "selling price for vegetables",
-      // Comprehensive Malayalam examples
-      "ഇന്നത്തെ തക്കാളി വില",
-      "മണ്ഡി നിരക്കുകൾ",
-      "വിപണി വിലകൾ",
-      "നെല്ലിന്റെ വില എത്രയാണ്",
-      "പച്ചക്കറികളുടെ വിൽപന വില",
-      "ഇന്നത്തെ വിള വിലകൾ",
-      "മണ്ഡിയിലെ നിരക്കുകൾ",
-      "തക്കാളിക്ക് നല്ല വില കിട്ടുമോ",
-      "ഇന്ന് വെണ്ടക്കയുടെ വില",
-      "കോഴിക്കോട് മണ്ഡി നിരക്ക്",
-      "കൃഷിച്ചന്തയിലെ വില",
-      "നെല്ല് വിറ്റാൽ എത്ര കിട്ടും",
-      "കുരുമുളകിന്റെ ഇന്നത്തെ വില",
-      "എലക്കി വില കൂടിയോ",
-      "വാഴപ്പഴത്തിന് നല്ല വില",
-      "പച്ച മുളകിന്റെ നിരക്ക്",
-      "ചേനയുടെ വിപണി വില",
-    ],
-    synonyms: [
-      "prices",
-      "mandi",
-      "rate",
-      "commodity price",
-      "market",
-      // Malayalam synonyms
-      "വില",
-      "മണ്ഡി",
-      "നിരക്ക്",
-      "വിപണി",
-      "വിലകൾ",
-      "മണ്ഡി വില",
-      "കാര്‍ഷിക വില",
-      "വിൽപന വില",
-      "ചന്ത വില",
-      "കമ്മോഡിറ്റി വില",
-    ],
-    navigatesTo: "market",
-    actions: ["search crop", "set alerts", "compare markets"],
-  },
-  {
-    id: "planner",
-    title: "Crop Planner",
-    description: "Plan crop calendar, sowing, irrigation, and tasks.",
-    examples: [
-      "plan my paddy",
-      "sowing schedule",
-      "what to plant next",
-      "crop calendar",
-      "irrigation planning",
-      // Comprehensive Malayalam examples
-      "നെൽകൃഷി ആസൂത്രണം",
-      "വിത്തിടൽ ഷെഡ്യൂൾ",
-      "അടുത്തത് എന്ത് നടാം",
-      "വിള കലണ്ടർ",
-      "ജലസേചന ആസൂത്രണം",
-      "എപ്പോൾ വിത്ത് ഇടാം",
-      "കൃഷിയുടെ സമയക്രമം",
-      "മൺസൂണിന് മുമ്പ് എന്ത് നടാം",
-      "വേനൽ കാലത്തെ വിളകൾ",
-      "കാലാനുസൃത കൃഷി",
-      "തൈകളുടെ നടീൽ സമയം",
-      "വിളവെടുപ്പിന്റെ സമയം",
-      "ഇടവിളകൾ പദ്ധതി",
-      "വിത്തിന്റെ അളവ്",
-      "കൃഷിയുടെ ക്രമം",
-      "പച്ചക്കറി കൃഷി പദ്ധതി",
-      "പാടശേഖരത്തിന്റെ ആസൂത്രണം",
-    ],
-    synonyms: [
-      "planning",
-      "calendar",
-      "schedule",
-      "plan crop",
-      // Malayalam synonyms
-      "ആസൂത്രണം",
-      "കലണ്ടർ",
-      "ഷെഡ്യൂൾ",
-      "വിള ആസൂത്രണം",
-      "കൃഷി പദ്ധതി",
-      "സമയക്രമം",
-      "വിത്തിടൽ",
-      "നടീൽ",
-      "കാലാനുസൃതം",
-      "പദ്ധതി",
-    ],
-    navigatesTo: "planner",
-    actions: ["create plan", "view calendar", "tasks"],
-  },
-  {
-    id: "twin",
-    title: "Farming Twin",
-    description:
-      "Digital twin of your farm for monitoring and insights. Has tabs: 'twin' for main dashboard and 'recommendations' for crop recommendations.",
-    examples: [
-      "open farm twin",
-      "digital twin",
-      "twin dashboard",
-      "crop recommendations",
-      "show recommendations",
-      "farming suggestions",
-      "ഫാം ട്വിൻ തുറക്കുക",
-      "ഡിജിറ്റൽ ട്വിൻ",
-      "കാർഷിക ട്വിൻ",
-      "recommendations tab",
-      "twin tab",
-      "go to recommendations",
-      "open recommendations",
-    ],
-    synonyms: [
-      "twin",
-      "digital farm",
-      "simulation",
-      "recommendations",
-      "suggestions",
-      "ട്വിൻ",
-      "ഡിജിറ്റൽ ഫാം",
-      "സിമുലേഷൻ",
-      "ശുപാർശകൾ",
-      "നിർദ്ദേശങ്ങൾ",
-    ],
-    navigatesTo: "twin",
-    subActions: ["twin", "recommendations"],
-    actions: [
-      "view twin",
-      "get recommendations",
-      "see suggestions",
-      "open dashboard",
-    ],
-  },
-  {
-    id: "weather",
-    title: "Weather Alerts",
-    description:
-      "Get weather forecasts and severe alerts. Can show current weather popup, alerts, or forecasts.",
-    examples: [
-      "rain tomorrow",
-      "weather today",
-      "storm alert",
-      "current weather",
-      "weather alerts",
-      "weather forecast",
-      "നാളെ മഴ",
-      "ഇന്നത്തെ കാലാവസ്ഥ",
-      "കൊടുങ്കാറ്റ് അലാറം",
-      "നിലവിലെ കാലാവസ്ഥ",
-      "കാലാവസ്ഥാ അലേർട്ടുകൾ",
-    ],
-    synonyms: [
-      "forecast",
-      "temperature",
-      "wind",
-      "storm",
-      "rain",
-      "weather alerts",
-      "current weather",
-      "പ്രവചനം",
-      "താപനില",
-      "കാറ്റ്",
-      "കൊടുങ്കാറ്റ്",
-      "മഴ",
-      "കാലാവസ്ഥ",
-      "കാലാവസ്ഥാ അലേർട്ടുകൾ",
-      "നിലവിലെ കാലാവസ്ഥ",
-    ],
-    navigatesTo: "weather",
-    subActions: ["current", "alerts", "forecast"],
-    actions: ["set alert", "view forecast", "show current weather"],
-  },
-  {
-    id: "forum",
-    title: "Farmer Forum",
-    description: "Discuss and ask questions with other farmers.",
-    examples: [
-      "ask community",
-      "farmer discussion",
-      "post a question",
-      // Comprehensive Malayalam examples
-      "കമ്യൂണിറ്റിയോട് ചോദിക്കുക",
-      "കർഷക ചർച്ച",
-      "ചോദ്യം പോസ്റ്റ് ചെയ്യുക",
-      "മറ്റു കർഷകരോട് ചോദിക്കുക",
-      "കർഷക ഫോറം തുറക്കുക",
-      "സമൂഹത്തോട് സഹായം ചോദിക്കുക",
-      "കർഷകരുടെ അനുഭവം അറിയണം",
-      "മറ്റുള്ളവരുടെ അഭിപ്രായം വേണം",
-      "കൂട്ടുകാരോട് സംസാരിക്കുക",
-      "കർഷക സമൂഹത്തിൽ പോകുക",
-      "ചർച്ചാ വേദിയിൽ പോകുക",
-      "കമ്മ്യൂണിറ്റി ഫോറം",
-      "സംവാദം ആരംഭിക്കുക",
-      "കൃഷിയെ പറ്റി ചർച്ച ചെയ്യുക",
-      "കർഷക കൂട്ടായ്മയിൽ പങ്കെടുക്കുക",
-    ],
-    synonyms: [
-      "community",
-      "group",
-      "forum",
-      "discussion",
-      "കമ്യൂണിറ്റി",
-      "ഗ്രൂപ്പ്",
-      "ഫോറം",
-      "ചർച്ച",
-      "സമൂഹം",
-      "കൂട്ടായ്മ",
-      "സംവാദം",
-    ],
-    navigatesTo: "forum",
-    actions: ["create post", "search topic"],
-  },
-  {
-    id: "knowledge",
-    title: "Knowledge Center",
-    description:
-      "Guides, best practices, home remedies, and learning content including soil testing with household items.",
-    examples: [
-      "how to control pests",
-      "best fertilizer",
-      "learning center",
-      "home remedies",
-      "natural solutions",
-      "soil testing at home",
-      "organic farming tips",
-      "kitchen garden remedies",
-      // Comprehensive Malayalam examples
-      "കീടങ്ങളെ എങ്ങനെ നിയന്ത്രിക്കാം",
-      "നല്ല വളം",
-      "പഠന കേന്ദ്രം",
-      "വീട്ടിലെ പരിഹാരങ്ങൾ",
-      "പ്രകൃതിദത്ത പരിഹാരം",
-      "മണ്ണ് പരിശോധന വീട്ടിൽ",
-      "വീട്ടിലെ വസ്തുക്കൾ കൊണ്ട് മണ്ണ് പരിശോധിക്കുക",
-      "കൃഷി പഠിക്കാൻ",
-      "എങ്ങനെ കൃഷി ചെയ്യാം",
-      "വിളയുടെ രോഗം എങ്ങനെ മാറ്റാം",
-      "വീട്ടിലെ മരുന്നുകൾ",
-      "പാചകശാലയിലെ പരിഹാരങ്ങൾ",
-      "ജൈവ കൃഷി നുറുങ്ങുകൾ",
-      "പ്രകൃതിദത്ത കീട നിയന്ത്രണം",
-      "എങ്ങനെ നല്ല വിള എടുക്കാം",
-      "വിത്ത് എങ്ങനെ നടാം",
-      "കൃഷി വിജ്ഞാനം",
-      "വിള പരിചരണം",
-      "മണ്ണിന്റെ ഗുണമേന്മ അറിയാൻ",
-      "വീട്ടിൽ തയ്യാറാക്കാവുന്ന വളം",
-    ],
-    synonyms: [
-      "guides",
-      "help",
-      "tutorial",
-      "how to",
-      "how can I know",
-      "knowledge",
-      "home remedies",
-      "natural solutions",
-      "organic methods",
-      "soil testing",
-      "diy solutions",
-      "kitchen remedies",
-      "ഗൈഡുകൾ",
-      "സഹായം",
-      "ട്യൂട്ടോറിയൽ",
-      "എങ്ങനെ",
-      "വിജ്ഞാനം",
-      "വീട്ടിലെ പരിഹാരം",
-      "പ്രകൃതിദത്ത പരിഹാരം",
-      "ജൈവിക രീതികൾ",
-      "മണ്ണ് പരിശോധന",
-    ],
-    navigatesTo: "knowledge",
-    actions: [
-      "search guides",
-      "home remedies",
-      "soil test methods",
-      "organic solutions",
-    ],
-  },
-  {
-    id: "buy",
-    title: "Buy Inputs",
-    description: "Shop for seeds, fertilizers, pesticides, and tools.",
-    examples: [
-      "buy seeds",
-      "order urea",
-      "purchase pesticide",
-      // Comprehensive Malayalam examples
-      "വിത്ത് വാങ്ങുക",
-      "യൂറിയ ഓർഡർ ചെയ്യുക",
-      "കീടനാശിനി വാങ്ങുക",
-      "വളം വാങ്ങാൻ",
-      "കാർഷിക ഉപകരണങ്ങൾ വാങ്ങുക",
-      "കൃഷി സാമഗ്രികൾ ഓർഡർ ചെയ്യുക",
-      "വിത്തുകൾ ഷോപ്പിംഗ് ചെയ്യുക",
-      "കൃഷിക്ക് വേണ്ട സാധനങ്ങൾ വാങ്ങുക",
-      "കാർഷിക കടയിലേക്ക് പോകുക",
-      "ഫാർമിംഗ് ഉപകരണങ്ങൾ",
-      "വിളയുടെ വിത്തുകൾ വേണം",
-      "മണ്ണിന് വളം വേണം",
-      "പുതിയ വിത്തുകൾ ഓർഡർ ചെയ്യുക",
-      "കൃഷി കിറ്റ് വാങ്ങുക",
-      "കാർഷിക മാർക്കറ്റിൽ പോകുക",
-    ],
-    synonyms: [
-      "shop",
-      "purchase",
-      "order",
-      "inputs",
-      "ഷോപ്പിംഗ്",
-      "വാങ്ങുക",
-      "ഓർഡർ",
-      "ഇൻപുട്ടുകൾ",
-      "കടയിൽ പോകുക",
-      "വാങ്ങൽ",
-      "സാധനങ്ങൾ",
-    ],
-    navigatesTo: "buy",
-    actions: ["add to cart", "search product"],
-  },
-  {
-    id: "scan",
-    title: "Scan Pest",
-    description: "Use camera to detect pests on crops.",
-    examples: [
-      "scan pest",
-      "camera detect insect",
-      "identify pest",
-      // Comprehensive Malayalam examples
-      "കീടം സ്കാൻ ചെയ്യുക",
-      "ക്യാമറ കൊണ്ട് പ്രാണി കണ്ടെത്തുക",
-      "കീടത്തെ തിരിച്ചറിയുക",
-      "കീട പരിശോധന",
-      "ക്യാമറ ഉപയോഗിച്ച് കീടം കണ്ടെത്തുക",
-      "പുഴു എന്താണെന്ന് അറിയാൻ",
-      "കീട തിരിച്ചറിയൽ",
-      "ഫോട്ടോ എടുത്ത് കീടം കണ്ടെത്തുക",
-      "കാമറ ഓപ്പൺ ചെയ്ത് കീടം സ്കാൻ ചെയ്യുക",
-      "എന്ത് കീടമാണ് ഇത്",
-      "ക്യാമറ കീട കണ്ടെത്തൽ",
-      "പ്രാണി തിരിച്ചറിയാൻ",
-      "കീട വിശകലനം",
-      "കാമറ ഉപയോഗിച്ച് പ്രാണി സ്കാൻ",
-      "കീടത്തിന്റെ പേര് അറിയാൻ",
-    ],
-    synonyms: [
-      "camera",
-      "scan",
-      "pest detector",
-      "insect",
-      "ക്യാമറ",
-      "സ്കാൻ",
-      "കീട കണ്ടെത്തൽ",
-      "പ്രാണി",
-      "കീടങ്ങൾ",
-    ],
-    navigatesTo: "scan",
-    actions: ["open camera", "analyze image"],
-  },
-  {
-    id: "expense",
-    title: "Expense Tracker",
-    description: "Track farming expenses and view totals.",
-    examples: [
-      "show my expenses",
-      "how much I spend",
-      "expense report",
-      "farming costs",
-      "money spent on fertilizer",
-      // Comprehensive Malayalam examples
-      "എന്റെ ചെലവുകൾ കാണിക്കുക",
-      "എത്ര ചെലവായി",
-      "ചെലവിന്റെ റിപ്പോർട്ട്",
-      "കാർഷിക ചെലവുകൾ",
-      "വളത്തിന് എത്ര പണം ചെലവായി",
-      "ഈ മാസം എന്ത് ചെലവായി",
-      "വിത്തിന് കൊടുത്ത പണം",
-      "കീടനാശിനിക്ക് ചെലവായ തുക",
-      "മൊത്തം കാർഷിക ചെലവ്",
-      "ഇതുവരെ എത്ര ചിലവായി",
-      "വരുമാനവും ചെലവും കാണിക്കുക",
-      "കൃഷിക്ക് കൊടുത്ത പണം",
-      "ഈ വർഷത്തെ ചെലവുകൾ",
-      "അക്കൗണ്ടുകൾ നോക്കണം",
-      "പണത്തിന്റെ കണക്ക്",
-    ],
-    synonyms: [
-      "costs",
-      "accounts",
-      "spending",
-      "money used",
-      "expenditure",
-      // Malayalam synonyms
-      "ചെലവുകൾ",
-      "അക്കൗണ്ടുകൾ",
-      "ചെലവ്",
-      "പണം ഉപയോഗിച്ചത്",
-      "ചിലവുകൾ",
-      "കാർഷിക ചെലവ്",
-      "പണക്കാര്യം",
-      "ചെലവാക്കിയത്",
-      "ബജറ്റ്",
-      "കണക്കുകൾ",
-    ],
-    navigatesTo: "expense",
-    actions: ["add expense", "view summary", "filter by crop"],
-  },
-  {
-    id: "news",
-    title: "Agriculture News",
-    description: "Latest agri news and updates.",
-    examples: [
-      "agriculture news",
-      "farming news today",
-      // Comprehensive Malayalam examples
-      "കാർഷിക വാർത്തകൾ",
-      "ഇന്നത്തെ കൃഷി വാർത്തകൾ",
-      "കൃഷിയെ പറ്റിയുള്ള വാർത്തകൾ",
-      "കാർഷിക മേഖലയിലെ പുതിയ വാർത്തകൾ",
-      "കൃഷി ന്യൂസ്",
-      "കർഷകർക്ക് വാർത്തകൾ",
-      "ഇന്നത്തെ കാർഷിക അപ്ഡേറ്റുകൾ",
-      "വിള വാർത്തകൾ",
-      "കൃഷി സെക്ടർ വാർത്തകൾ",
-      "കാർഷിക നയങ്ങൾ വാർത്തകൾ",
-      "സർക്കാർ കൃഷി വാർത്തകൾ",
-      "കർഷകർക്കുള്ള അപ്ഡേറ്റുകൾ",
-      "കാർഷിക ന്യൂസ് ഫീഡ്",
-      "ഫാർമിംഗ് ന്യൂസ്",
-      "കൃഷി തലക്കെട്ടുകൾ",
-    ],
-    synonyms: [
-      "news",
-      "updates",
-      "headlines",
-      "വാർത്തകൾ",
-      "അപ്ഡേറ്റുകൾ",
-      "തലക്കെട്ടുകൾ",
-      "ന്യൂസ്",
-      "വിവരങ്ങൾ",
-      "വിശേഷങ്ങൾ",
-    ],
-    navigatesTo: "news",
-  },
-  {
-    id: "schemes",
-    title: "Govt Schemes",
-    description: "Government schemes and subsidies for farmers.",
-    examples: [
-      "PM-Kisan details",
-      "govt subsidy",
-      "schemes for farmers",
-      "പിഎം കിസാൻ വിവരങ്ങൾ",
-      "സർക്കാർ സബ്സിഡി",
-      "കർഷകർക്കുള്ള പദ്ധതികൾ",
-    ],
-    synonyms: [
-      "government",
-      "scheme",
-      "subsidy",
-      "yojana",
-      "സർക്കാർ",
-      "പദ്ധതി",
-      "സബ്സിഡി",
-      "യോജന",
-    ],
-    navigatesTo: "schemes",
-  },
-  {
-    id: "notifications",
-    title: "Notifications",
-    description: "All notifications and alerts related to your farm.",
-    examples: [
-      "open alerts",
-      "show notifications",
-      "അലാറങ്ങൾ തുറക്കുക",
-      "അറിയിപ്പുകൾ കാണിക്കുക",
-    ],
-    synonyms: ["notification", "alert", "അറിയിപ്പ്", "അലാറം"],
-    navigatesTo: "notifications",
-  },
-  {
-    id: "profile",
-    title: "Profile",
-    description: "View and edit your profile and settings.",
-    examples: [
-      "open profile",
-      "settings",
-      "my account",
-      "പ്രൊഫൈൽ തുറക്കുക",
-      "സെറ്റിംഗുകൾ",
-      "എന്റെ അക്കൗണ്ട്",
-    ],
-    synonyms: [
-      "account",
-      "settings",
-      "profile",
-      "അക്കൗണ്ട്",
-      "സെറ്റിംഗുകൾ",
-      "പ്രൊഫൈൽ",
-    ],
-    navigatesTo: "profile",
-  },
-  {
-    id: "resources",
-    title: "Knowledge Center",
-    description: "Access to all knowledge resources and learning materials.",
-    examples: [
-      "knowledge center",
-      "resources",
-      "learning center",
-      "വിജ്ഞാന കേന്ദ്രം",
-      "റിസോഴ്സുകൾ",
-      "പഠന കേന്ദ്രം",
-    ],
-    synonyms: [
-      "resources",
-      "knowledge center",
-      "learning",
-      "റിസോഴ്സുകൾ",
-      "വിജ്ഞാന കേന്ദ്രം",
-      "പഠനം",
-    ],
-    navigatesTo: "resources",
-  },
-  {
-    id: "labourers",
-    title: "Labour Hub",
-    description: "Find and hire farm laborers, check availability and rates.",
-    examples: [
-      "find workers",
-      "hire labour",
-      "need workers",
-      "labor availability",
-      "വർക്കർമാരെ കണ്ടെത്തുക",
-      "തൊഴിലാളികളെ വാടകയ്ക്ക് എടുക്കുക",
-      "വർക്കർമാർ വേണം",
-      "തൊഴിലാളി ലഭ്യത",
-    ],
-    synonyms: [
-      "workers",
-      "labour",
-      "laborers",
-      "hire",
-      "employment",
-      "workforce",
-      "വർക്കർമാർ",
-      "തൊഴിലാളികൾ",
-      "വാടകയ്ക്ക്",
-      "തൊഴിൽ",
-      "ജോലിക്കാർ",
-    ],
-    navigatesTo: "labourers",
-    actions: ["search workers", "check rates", "contact labor", "book workers"],
-  },
-  {
-    id: "fairfarm",
-    title: "FairFarm Marketplace",
-    description:
-      "Direct farmer-to-consumer marketplace for selling and buying farm products.",
-    examples: [
-      "sell my crops",
-      "fair farm marketplace",
-      "direct selling",
-      "farmer market",
-      "എന്റെ വിളകൾ വിൽക്കുക",
-      "ഫെയർ ഫാം മാർക്കറ്റ്",
-      "നേരിട്ട് വിൽപന",
-      "കർഷക മാർക്കറ്റ്",
-    ],
-    synonyms: [
-      "marketplace",
-      "sell crops",
-      "direct market",
-      "fair trade",
-      "farm market",
-      "മാർക്കറ്റ്പ്ലേസ്",
-      "വിള വിൽപന",
-      "നേരിട്ട് മാർക്കറ്റ്",
-      "ന്യായ വ്യാപാരം",
-      "കർഷക മാർക്കറ്റ്",
-    ],
-    navigatesTo: "fairfarm",
-    actions: [
-      "list product",
-      "browse products",
-      "contact farmer",
-      "buy direct",
-    ],
-  },
-  // Quick actions mapped to nearest features
-  {
-    id: "spraying",
-    title: "Crop Recommendations (CropWise)",
-    description:
-      "Smart crop recommendations, variety selection, and farming guidance based on location and conditions.",
-    examples: [
-      "crop recommendations",
-      "which crop to plant",
-      "best crops for my area",
-      "crop wise suggestions",
-      "വിള ശുപാർശകൾ",
-      "ഏത് വിള നടാം",
-      "എന്റെ പ്രദേശത്തിനുള്ള മികച്ച വിളകൾ",
-    ],
-    synonyms: [
-      "recommendations",
-      "crop suggestions",
-      "crop advice",
-      "best crops",
-      "suitable crops",
-      "ശുപാർശകൾ",
-      "വിള നിർദ്ദേശങ്ങൾ",
-      "വിള ഉപദേശം",
-    ],
-    navigatesTo: "twin",
-  },
-  {
-    id: "mapping",
-    title: "Fair Farm (Mapping)",
-    description:
-      "Farm boundary mapping and fair pricing tools, direct farmer marketplace.",
-    examples: [
-      "map my field",
-      "boundary mapping",
-      "fair farm",
-      "sell direct",
-      "farmer marketplace",
-      "എന്റെ വയൽ മാപ്പ് ചെയ്യുക",
-      "അതിർത്തി മാപ്പിംഗ്",
-      "ഫെയർ ഫാം",
-      "നേരിട്ട് വിൽക്കുക",
-      "കർഷക മാർക്കറ്റ്പ്ലേസ്",
-    ],
-    synonyms: [
-      "mapping",
-      "map field",
-      "boundary",
-      "fair farm",
-      "marketplace",
-      "direct selling",
-      "മാപ്പിംഗ്",
-      "വയൽ മാപ്പ്",
-      "അതിർത്തി",
-      "ഫെയർ ഫാം",
-      "മാർക്കറ്റ്പ്ലേസ്",
-      "നേരിട്ട് വിൽപന",
-    ],
-    navigatesTo: "fairfarm",
-  },
-  {
-    id: "seeding",
-    title: "Price Beacon (Seeding)",
-    description: "Seeding recommendations and price insights.",
-    examples: [
-      "best time to sow",
-      "seeding rate",
-      "നല്ല സമയം വിത്തിടാൻ",
-      "വിത്ത് നിരക്ക്",
-    ],
-    synonyms: [
-      "seeding",
-      "sowing",
-      "seed rate",
-      "വിത്തിടൽ",
-      "വിതയൽ",
-      "വിത്ത് നിരക്ക്",
-    ],
-    navigatesTo: "planner",
-  },
-  {
-    id: "support",
-    title: "Support",
-    description:
-      "General help via chatbot when tasks are not directly navigable.",
-    examples: [
-      "help me",
-      "I need assistance",
-      "talk to assistant",
-      "എന്നെ സഹായിക്കുക",
-      "എനിക്ക് സഹായം വേണം",
-      "അസിസ്റ്റന്റിനോട് സംസാരിക്കുക",
-    ],
-    synonyms: [
-      "help",
-      "assistant",
-      "chatbot",
-      "support",
-      "സഹായം",
-      "അസിസ്റ്റന്റ്",
-      "ചാറ്റ്ബോട്ട്",
-      "സപ്പോർട്ട്",
-    ],
-    navigatesTo: "chatbot",
-  },
+  "buy-inputs",
+  "history",
 ];
 
-// Offline LLM setup using Transformers.js
-let offlineLLM: any = null;
+// WebLLM setup for reliable browser LLM inference
+let webLLMEngine: any = null;
+let activeModelId: string | null = null;
 let isLLMLoading = false;
-let llmLoadPromise: Promise<any> | null = null;
+let llmLoadPromise: Promise<boolean> | null = null;
 let loadingProgressCallback:
   | ((progress: { text: string; percentage: number }) => void)
   | null = null;
 
-// Initialize the offline LLM (lightweight text generation model)
-export async function initOfflineLLM(
-  onProgress?: (progress: { text: string; percentage: number }) => void
-): Promise<boolean> {
-  if (offlineLLM) {
-    console.log("✅ Offline LLM already initialized");
-    return true;
-  }
-
-  if (isLLMLoading) {
-    console.log("⏳ LLM already loading, waiting...");
-    // Set new progress callback if provided
-    if (onProgress) {
-      loadingProgressCallback = onProgress;
-    }
-    try {
-      await llmLoadPromise;
-      return offlineLLM !== null;
-    } catch (error) {
-      console.error("❌ Failed to wait for LLM loading:", error);
-      return false;
-    }
-  }
-
-  isLLMLoading = true;
-  loadingProgressCallback = onProgress;
-  console.log("🤖 Initializing offline LLM for voice navigation...");
-
-  // Notify start of loading
+function emitProgress(text: string, percentage: number) {
   if (loadingProgressCallback) {
-    loadingProgressCallback({ text: "Preparing AI model...", percentage: 0 });
-  }
-
-  llmLoadPromise = (async () => {
-    try {
-      // Notify download start
-      if (loadingProgressCallback) {
-        loadingProgressCallback({
-          text: "Downloading AI model (248MB)...",
-          percentage: 10,
-        });
-      }
-
-      // Use a lightweight text generation model that works well for structured output
-      offlineLLM = await pipeline(
-        "text-generation",
-        "Xenova/LaMini-Flan-T5-248M", // Lightweight, multilingual, good for instruction following
-        {
-          // Progress callback for the actual model loading
-          progress_callback: (progress: any) => {
-            if (loadingProgressCallback && progress) {
-              const percentage = Math.min(
-                90,
-                10 + (progress.progress || 0) * 80
-              );
-              let text = "Downloading AI model...";
-
-              if (progress.status === "loading") {
-                text = `Loading model files... (${Math.round(percentage)}%)`;
-              } else if (progress.status === "ready") {
-                text = "Initializing AI engine...";
-              }
-
-              loadingProgressCallback({ text, percentage });
-            }
-          },
-        }
-      );
-
-      // Notify completion
-      if (loadingProgressCallback) {
-        loadingProgressCallback({ text: "AI model ready!", percentage: 100 });
-      }
-
-      console.log("✅ Offline LLM initialized successfully!");
-      return offlineLLM;
-    } catch (error) {
-      console.warn("❌ Failed to initialize offline LLM:", error);
-      console.log("🔄 Trying alternative model...");
-
-      if (loadingProgressCallback) {
-        loadingProgressCallback({
-          text: "Trying alternative model...",
-          percentage: 30,
-        });
-      }
-
-      try {
-        // Fallback to an even smaller model if the first one fails
-        offlineLLM = await pipeline("text-generation", "Xenova/distilgpt2");
-
-        if (loadingProgressCallback) {
-          loadingProgressCallback({
-            text: "Backup AI model ready!",
-            percentage: 100,
-          });
-        }
-
-        console.log("✅ Offline LLM initialized with fallback model!");
-        return offlineLLM;
-      } catch (cpuError) {
-        console.error("❌ Failed to initialize LLM even on CPU:", cpuError);
-
-        if (loadingProgressCallback) {
-          loadingProgressCallback({
-            text: "AI model failed to load",
-            percentage: 0,
-          });
-        }
-
-        offlineLLM = null;
-        return null;
-      }
-    }
-  })();
-
-  try {
-    await llmLoadPromise;
-    isLLMLoading = false;
-    loadingProgressCallback = null; // Clear callback after completion
-    return offlineLLM !== null;
-  } catch (error) {
-    isLLMLoading = false;
-    loadingProgressCallback = null;
-    console.error("❌ LLM initialization failed:", error);
-    return false;
+    loadingProgressCallback({
+      text,
+      percentage: Math.min(100, Math.max(0, Math.round(percentage))),
+    });
   }
 }
 
-// Check if offline LLM is ready
+async function reloadModelWithTimeout(
+  engine: any,
+  modelId: string,
+  config: Record<string, unknown>,
+  timeoutMs: number
+) {
+  let timeoutHandle: number | undefined;
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutHandle = window.setTimeout(() => {
+      reject(
+        new Error(
+          `Model load timeout after ${timeoutMs / 1000}s for ${modelId}`
+        )
+      );
+    }, timeoutMs);
+  });
+
+  try {
+    await Promise.race([engine.reload(modelId, config), timeoutPromise]);
+  } finally {
+    if (timeoutHandle !== undefined) {
+      clearTimeout(timeoutHandle);
+    }
+  }
+}
+
+// Initialize the WebLLM engine (lightweight text generation model)
+export async function initOfflineLLM(
+  onProgress?: (progress: { text: string; percentage: number }) => void
+): Promise<boolean> {
+  if (webLLMEngine) {
+    console.log("✅ WebLLM already initialized");
+    return true;
+  }
+
+  if (isLLMLoading && llmLoadPromise) {
+    if (onProgress) {
+      loadingProgressCallback = onProgress;
+    }
+    return llmLoadPromise;
+  }
+
+  isLLMLoading = true;
+  loadingProgressCallback = onProgress ? onProgress : null;
+  console.log("🤖 Initializing WebLLM for voice navigation...");
+  emitProgress("Preparing AI model...", 0);
+
+  llmLoadPromise = (async () => {
+    try {
+      const webllm = await loadWebLLMModule();
+      const availableModelIds = webllm.prebuiltAppConfig.model_list.map(
+        (m) => m.model_id
+      );
+
+      const candidates: string[] = MODEL_PREFERENCE_ORDER.filter((modelId) =>
+        availableModelIds.includes(modelId)
+      );
+
+      if (!candidates.length) {
+        candidates.push(...availableModelIds.slice(0, 3));
+      }
+
+      if (!candidates.length) {
+        throw new Error("No WebLLM models available in prebuilt config");
+      }
+
+      if (!webLLMEngine) {
+        webLLMEngine = new webllm.MLCEngine();
+      }
+
+      let loadedModel: string | null = null;
+      let lastError: unknown = null;
+
+      for (const modelId of candidates) {
+        try {
+          const friendlyName = modelId.replace(/-/g, " ");
+          emitProgress(`Downloading ${friendlyName}...`, 10);
+
+          webLLMEngine.setInitProgressCallback((report: any) => {
+            if (report) {
+              const progress = Math.min(
+                95,
+                10 + ((report.progress ?? 0) as number) * 80
+              );
+              emitProgress(
+                report.text ?? `Downloading ${friendlyName}...`,
+                progress
+              );
+            }
+          });
+
+          await reloadModelWithTimeout(
+            webLLMEngine,
+            modelId,
+            {
+              temperature: 0.1,
+              top_p: 0.8,
+            },
+            MODEL_LOAD_TIMEOUT_MS
+          );
+
+          loadedModel = modelId;
+          activeModelId = modelId;
+          break;
+        } catch (modelError) {
+          lastError = modelError;
+          console.warn(`⚠️ Model ${modelId} failed to load:`, modelError);
+          emitProgress(`Model ${modelId} unavailable, trying fallback...`, 30);
+        }
+      }
+
+      if (!loadedModel) {
+        throw lastError ?? new Error("All WebLLM models failed to load");
+      }
+
+      emitProgress("AI model ready!", 100);
+      console.log(`✅ WebLLM initialized successfully with ${loadedModel}`);
+      return true;
+    } catch (error) {
+      console.error("❌ WebLLM initialization failed:", error);
+      emitProgress("AI model unavailable - using keyword fallback", 100);
+      webLLMEngine = null;
+      activeModelId = null;
+      return false;
+    } finally {
+      isLLMLoading = false;
+      loadingProgressCallback = null;
+    }
+  })();
+
+  return llmLoadPromise;
+}
+
+// Utility function to clear corrupted model cache
+export async function clearModelCache(): Promise<void> {
+  console.log("🗑️ Clearing AI model cache...");
+
+  try {
+    if ("caches" in window) {
+      const cacheNames = await caches.keys();
+      let cleared = 0;
+
+      for (const cacheName of cacheNames) {
+        if (
+          cacheName.includes("huggingface") ||
+          cacheName.includes("transformers") ||
+          cacheName.includes("mlc") ||
+          cacheName.includes("webllm") ||
+          cacheName.includes("xenova")
+        ) {
+          await caches.delete(cacheName);
+          cleared++;
+          console.log(`✅ Cleared cache: ${cacheName}`);
+        }
+      }
+
+      if (cleared > 0) {
+        console.log(`✅ Cleared ${cleared} AI model cache(s)`);
+      } else {
+        console.log("ℹ️ No AI model cache found to clear");
+      }
+    }
+
+    // Also clear localStorage entries related to models
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (
+        key &&
+        (key.includes("huggingface") ||
+          key.includes("transformers") ||
+          key.includes("mlc") ||
+          key.includes("webllm"))
+      ) {
+        keysToRemove.push(key);
+      }
+    }
+
+    keysToRemove.forEach((key) => {
+      localStorage.removeItem(key);
+      console.log(`✅ Cleared localStorage: ${key}`);
+    });
+
+    // Reset WebLLM state
+    webLLMEngine = null;
+    activeModelId = null;
+    isLLMLoading = false;
+    llmLoadPromise = null;
+
+    console.log("✅ Model cache cleared successfully!");
+  } catch (error) {
+    console.error("❌ Failed to clear model cache:", error);
+  }
+}
+
+// Check if WebLLM is ready
 export function isOfflineLLMReady(): boolean {
-  return offlineLLM !== null && !isLLMLoading;
+  return webLLMEngine !== null && !isLLMLoading;
 }
 
 // Get LLM loading status for UI
@@ -1017,831 +293,215 @@ export function getOfflineLLMStatus(): {
   error: boolean;
   mode: "ai" | "keywords" | "loading" | "error";
   statusText: string;
+  modelId: string | null;
 } {
-  if (offlineLLM !== null) {
-    return {
-      ready: true,
-      loading: false,
-      error: false,
-      mode: "ai",
-      statusText: "AI Ready - Full natural language understanding",
-    };
+  const ready = webLLMEngine !== null && !isLLMLoading;
+  const loading = isLLMLoading;
+  const error = webLLMEngine === null && !isLLMLoading;
+
+  let mode: "ai" | "keywords" | "loading" | "error" = "keywords";
+  let statusText = "Using keyword matching";
+
+  if (loading) {
+    mode = "loading";
+    statusText = "Loading AI model...";
+  } else if (ready) {
+    mode = "ai";
+    statusText = activeModelId
+      ? `AI ready (${activeModelId})`
+      : "AI ready - natural language understanding";
+  } else if (error) {
+    mode = "error";
+    statusText = "AI failed to load - using keywords";
   }
 
-  if (isLLMLoading) {
-    return {
-      ready: false,
-      loading: true,
-      error: false,
-      mode: "loading",
-      statusText: "Loading AI model...",
-    };
-  }
-
-  // LLM failed to load or not initialized yet
-  return {
-    ready: false,
-    loading: false,
-    error: offlineLLM === null && !isLLMLoading,
-    mode: "keywords",
-    statusText: "Keyword Mode - Basic voice commands only",
-  };
+  return { ready, loading, error, mode, statusText, modelId: activeModelId };
 }
 
-function buildPrompt(userQuery: string, language?: string) {
-  const kbJson = JSON.stringify(FEATURE_KB, null, 2);
-  const languageContext = language
-    ? `\nUSER'S SELECTED LANGUAGE: ${language} - Give extra attention to queries in this language.\n`
-    : "";
-
-  return `You are an expert intent router for a farmer mobile web app. Your job is to understand natural conversational speech and map it to the correct app functionality.
-
-Knowledge base of app sections (JSON):\n${kbJson}\n\n${languageContext}
-
-CRITICAL INSTRUCTIONS:
-- Understand NATURAL CONVERSATIONAL SPEECH, not just keywords
-- The app supports multiple Indian languages: English, Hindi (हिंदी), Malayalam (മലയാളം), Kannada (ಕನ್ನಡ), Tamil (தமிழ்), Telugu (తెలుగు), Marathi (मराठी), Bengali (বাংলা)
-- CONTEXT AWARENESS: Understand the underlying need/intent behind what the user is saying
-- Pay special attention to the user's selected language: ${language || "not specified"}
-
-NATURAL LANGUAGE EXAMPLES:
-❌ Don't just match keywords → ✅ Understand the real intent:
-
-English:
-"My tomato plant leaf has something on it, what should I do?" → INTENT: Plant disease diagnosis → targetId: "diagnose"
-"How much did I spend on fertilizer this month?" → INTENT: Check expenses → targetId: "expense"  
-"Are the prices good for selling rice today?" → INTENT: Check market prices → targetId: "market"
-"It's been raining a lot, will it continue?" → INTENT: Weather forecast → targetId: "weather"
-"Show me my profile" → INTENT: View profile → targetId: "profile"
-"Take me to home" → INTENT: Go home → targetId: "home"
-"Open farming twin" → INTENT: Farming twin → targetId: "twin"
-
-Malayalam:
-"എന്റെ പയറിന് വെള്ളക്കാശു വന്നിട്ടുണ്ട്" → INTENT: Plant disease → targetId: "diagnose"
-"ഇന്ന് വീട്ടിൽ പച്ചക്കറി വിറ്റാൽ നല്ല വിലകിട്ടുമോ?" → INTENT: Market prices → targetId: "market"
-"ഇന്നത്തെ കാലാവസ്ഥ എങ്ങനെയാണ്?" → INTENT: Weather → targetId: "weather"
-"പ്രൊഫൈൽ" → INTENT: Profile → targetId: "profile"
-"പ്രോഫൈൽ കാണിക്കുക" → INTENT: Profile → targetId: "profile"
-"എന്റെ പ്രൊഫൈൽ" → INTENT: Profile → targetId: "profile"
-"ഹോം" → INTENT: Home → targetId: "home"
-"ഹോം പേജ്" → INTENT: Home → targetId: "home"
-"വീട്ടിലേക്ക് പോകുക" → INTENT: Home → targetId: "home"
-"കാർഷിക ട്വിൻ" → INTENT: Farming twin → targetId: "twin"
-"ട്വിൻ" → INTENT: Farming twin → targetId: "twin"
-"വിള പരിശോധന" → INTENT: Crop diagnosis → targetId: "diagnose"
-"രോഗനിർണയം" → INTENT: Crop diagnosis → targetId: "diagnose"
-"വിപണി" → INTENT: Market → targetId: "market"
-"വിപണി വില" → INTENT: Market → targetId: "market"
-"വാർത്തകൾ" → INTENT: News → targetId: "news"
-"ന്യൂസ്" → INTENT: News → targetId: "news"
-"ഫോറം" → INTENT: Forum → targetId: "forum"
-"കർഷക ഫോറം" → INTENT: Forum → targetId: "forum"
-"അലർട്ട്" → INTENT: Alerts → targetId: "notifications"
-"അലർട്ടുകൾ" → INTENT: Alerts → targetId: "notifications"
-"മുന്നറിയിപ്പുകൾ" → INTENT: Alerts → targetId: "notifications"
-"ചെലവ്" → INTENT: Expenses → targetId: "expense"
-"ചിലവ് ട്രാക്കർ" → INTENT: Expenses → targetId: "expense"
-"പണം ചിലവ്" → INTENT: Expenses → targetId: "expense"
-"വിജ്ഞാന കേന്ദ്രം" → INTENT: Knowledge → targetId: "knowledge"
-"അറിവ്" → INTENT: Knowledge → targetId: "knowledge"
-"പഠിക്കാൻ" → INTENT: Knowledge → targetId: "knowledge"
-
-Hindi:
-"मेरे टमाटर के पत्तों पर धब्बे हैं" → INTENT: Plant disease → targetId: "diagnose"
-"आज चावल का भाव क्या है?" → INTENT: Market prices → targetId: "market"
-"इस महीने खाद पर कितना खर्च हुआ?" → INTENT: Expenses → targetId: "expense"
-"प्रोफाइल" → INTENT: Profile → targetId: "profile"
-"मेरा प्रोफाइल" → INTENT: Profile → targetId: "profile"
-"होम" → INTENT: Home → targetId: "home"
-"घर जाना है" → INTENT: Home → targetId: "home"
-
-CONTEXT PATTERNS TO RECOGNIZE:
-- Plant problems/symptoms/diseases → "diagnose"
-- Money spent/costs/expenses → "expense"  
-- Selling crops/price checking → "market"
-- Weather concerns/rain/storm → "weather"
-- Learning/guidance/how-to/how can/diy solutions/homemade remedies → "knowledge"
-- Buying seeds/fertilizer/tools → "buy"
-- Community questions/discussions → "forum"
-- Planning next crop/timing → "planner"
-- Pest identification/control → "scan" or "diagnose"
-
-NAVIGATION PATTERNS (Malayalam/Hindi/English):
-- Profile words: "പ്രൊഫൈൽ", "പ്രോഫൈൽ", "profile", "प्रोफाइल", "मेरा प्रोफाइल" → "profile"
-- Home words: "ഹോം", "വീട്", "home", "होम", "घर" → "home"
-- News words: "വാർത്ത", "ന്യൂസ്", "news", "समाचार", "न्यूज़" → "news"
-- Forum words: "ഫോറം", "കർഷക ഫോറം", "forum", "फोरम", "किसान फोरम" → "forum"
-- Market words: "വിപണി", "market", "बाज़ार", "मंडी" → "market"
-- Weather words: "കാലാവസ്ഥ", "weather", "मौसम" → "weather"
-- Alert words: "അലർട്ട്", "മുന്നറിയിപ്പ്", "alert", "अलर्ट", "चेतावनी" → "notifications"
-- Twin words: "ട്വിൻ", "കാർഷിക ട്വിൻ", "twin", "farming twin", "ट्विन" → "twin"
-- Expense words: "ചെലവ്", "ചിലവ്", "expense", "खर्च", "लागत" → "expense"
-- Knowledge words: "വിജ്ഞാനം", "അറിവ്", "knowledge", "ज्ञान", "जानकारी" → "knowledge"
-
-ADVANCED REASONING:
-- If user describes symptoms (spots, yellowing, wilting, pests) → "diagnose"
-- If user asks about timing, scheduling, planning → "planner"
-- If user mentions money, costs, spending → "expense"
-- If user asks about selling, prices, rates → "market"
-- If user needs help but it's complex/conversational → "chat" (send to chatbot)
-
-OUTPUT REQUIREMENTS:
-- Think about the core need behind the words
-- Don't just keyword match - understand intent
-- Be confident with clear intents, use "chat" for ambiguous requests
-- Output STRICT JSON only, no markdown, no prose
-
-Output JSON schema:
-{
-  "action": "navigate" | "chat" | "weather" | "popup" | "tab",
-  "targetId": "one of ${KNOWN_FEATURE_IDS.join(" | ")} or null",
-  "subAction": "string or null", // specific tab, popup, or functionality within the feature
-  "confidence": number between 0 and 1,
-  "reason": string explaining your reasoning,
-  "language": string, // detected user language code/name (e.g., "malayalam", "english", "mixed")
-  "queryNormalized": string // the core intent in simple words
-}
-
-User query: ${userQuery}`;
-}
-
-function safeParseJson(text: string): any | null {
-  // Try to extract JSON from raw text or code fences
-  try {
-    return JSON.parse(text);
-  } catch (_) {
-    const match = text.match(/\{[\s\S]*\}/);
-    if (match) {
-      try {
-        return JSON.parse(match[0]);
-      } catch (_) {}
-    }
-  }
-  return null;
-}
-
-// Enhanced validation and sanitization of voice decisions
-function validateAndSanitizeDecision(parsed: any): VoiceDecision | null {
-  if (!parsed || typeof parsed !== "object") {
-    return null;
+// Use WebLLM to parse intent with structured prompt
+async function callOfflineLLMForIntent(
+  transcript: string,
+  language: string = "english"
+): Promise<VoiceDecision> {
+  if (!webLLMEngine) {
+    throw new Error("WebLLM not initialized");
   }
 
-  // Validate action
-  const validActions = ["navigate", "chat", "weather", "popup", "tab"];
-  if (!parsed.action || !validActions.includes(parsed.action)) {
-    console.warn(`⚠️ Invalid action: ${parsed.action}`);
-    return null;
-  }
+  const structuredPrompt = `You are a voice navigation assistant for an agricultural app called fAImer. Parse the user's voice command into a navigation decision.
 
-  // Validate targetId if present
-  if (parsed.targetId && !KNOWN_FEATURE_IDS.includes(parsed.targetId)) {
-    console.warn(`⚠️ Invalid targetId: ${parsed.targetId}`);
-    // Don't return null, just clear the targetId and let it fallback
-    parsed.targetId = null;
-  }
+Available features:
+- home: Main dashboard
+- twin: Crop recommendations and farming twin
+- diagnose: Disease/pest diagnosis
+- planner: Crop planning and scheduling
+- knowledge: Agricultural knowledge base
+- expense: Expense tracking
+- weather: Weather information
+- farmer-assistant: AI farming assistant/chatbot
+- chatbot: General AI chat
+- alerts: Notifications and alerts
+- news: Agriculture news
+- forum: Farmer community forum
+- schemes: Government schemes
+- buy-inputs: Buy farming inputs
+- history: Usage history
 
-  // Validate confidence
-  const confidence =
-    typeof parsed.confidence === "number"
-      ? Math.max(0, Math.min(1, parsed.confidence))
-      : 0.5;
+User said: "${transcript}"
+Language: ${language}
 
-  // Construct sanitized decision
-  const decision: VoiceDecision = {
-    action: parsed.action,
-    targetId: parsed.targetId || null,
-    subAction: parsed.subAction || undefined,
-    confidence,
-    reason: parsed.reason || undefined,
-    language: parsed.language || undefined,
-    queryNormalized: parsed.queryNormalized || undefined,
-  };
-
-  return decision;
-}
-
-async function callOfflineLLM(prompt: string): Promise<VoiceDecision | null> {
-  if (!isOfflineLLMReady()) {
-    console.warn("🚨 Offline LLM not ready");
-    return null;
-  }
-
-  console.log("🤖 Using offline LLM for voice navigation...");
-
-  try {
-    // Create a more structured prompt for the lightweight model
-    const structuredPrompt = `Task: Parse user voice input for agricultural app navigation.
-
-Input: "${prompt.split("User said: ")[1]?.split("\n")[0] || prompt}"
-
-Available features: ${KNOWN_FEATURE_IDS.join(", ")}
-
-Response format (JSON only):
+Respond with ONLY this JSON format:
 {
   "action": "navigate",
-  "targetId": "feature_name",
-  "subAction": "optional_sub_feature",
-  "confidence": 0.8,
-  "reason": "explanation"
-}
+  "targetId": "feature_id_or_null",
+  "confidence": 0.9,
+  "reason": "brief explanation"
+}`;
 
-JSON:`;
-
-    const response = await offlineLLM(structuredPrompt, {
-      max_new_tokens: 150,
+  try {
+    const response = await webLLMEngine.chat.completions.create({
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are a helpful voice navigation assistant. Always respond with valid JSON only.",
+        },
+        { role: "user", content: structuredPrompt },
+      ],
       temperature: 0.1,
-      do_sample: false,
-      return_full_text: false,
+      max_tokens: 200,
     });
 
-    let text = "";
-    if (Array.isArray(response) && response.length > 0) {
-      text = response[0].generated_text || "";
-    } else if (response.generated_text) {
-      text = response.generated_text;
-    } else {
-      text = String(response);
+    const content = response.choices[0]?.message?.content;
+    if (!content) {
+      throw new Error("No response from WebLLM");
     }
 
-    console.log("✅ Offline LLM raw response:", text);
-
-    // Try to extract JSON from the response
-    let jsonText = text;
-    const jsonStart = text.indexOf("{");
-    const jsonEnd = text.lastIndexOf("}");
-    if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
-      jsonText = text.substring(jsonStart, jsonEnd + 1);
+    // Try to parse JSON from the response
+    let jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error("No JSON found in response");
     }
 
-    const parsed = safeParseJson(jsonText);
-    if (!parsed) {
-      console.warn("❌ Failed to parse offline LLM JSON response:", text);
-      return null;
-    }
+    const parsed = JSON.parse(jsonMatch[0]);
 
-    console.log("🎯 Offline LLM parsed response:", parsed);
-
-    // Validate and sanitize the decision
-    const decision = validateAndSanitizeDecision(parsed);
-    if (!decision) {
-      console.warn("❌ Failed to validate offline LLM decision:", parsed);
-      return null;
-    }
-
-    console.log("🚀 Final validated offline LLM decision:", decision);
-    return decision;
-  } catch (err) {
-    console.warn("❌ Offline LLM call failed:", err);
-    return null;
+    return {
+      action: parsed.action || "navigate",
+      targetId: parsed.targetId,
+      confidence: parsed.confidence || 0.5,
+      reason: parsed.reason || "AI parsing",
+      language,
+      queryNormalized: transcript.toLowerCase().trim(),
+    };
+  } catch (error) {
+    console.error("❌ WebLLM parsing error:", error);
+    throw error;
   }
 }
 
-// Keyword fallback using simple keyword matching in multiple languages
-// Enhanced with sub-action detection - used when LLM fails
-export function offlineMatch(
-  queryRaw: string,
-  language?: string
+// Comprehensive keyword matching with multilingual support (fallback)
+function getKeywordBasedDecision(
+  transcript: string,
+  language: string
 ): VoiceDecision {
-  console.log(`🔍 Keyword matching: "${queryRaw}" (language: ${language})`);
+  const query = transcript.toLowerCase().trim();
 
-  const q = queryRaw.toLowerCase();
+  // English keywords
+  const englishKeywords: Record<string, string[]> = {
+    home: ["home", "main", "dashboard", "start"],
+    twin: ["twin", "recommendation", "suggest", "advice", "crop advice"],
+    diagnose: ["diagnose", "disease", "pest", "problem", "sick", "issue"],
+    planner: ["plan", "schedule", "calendar", "timing", "when"],
+    knowledge: ["knowledge", "learn", "information", "guide", "help"],
+    expense: ["expense", "cost", "money", "budget", "spend", "track"],
+    weather: ["weather", "rain", "temperature", "forecast", "climate"],
+    "farmer-assistant": ["assistant", "help", "support", "question"],
+    chatbot: ["chat", "talk", "conversation"],
+    alerts: ["alert", "notification", "warning", "reminder"],
+    news: ["news", "update", "article", "information"],
+    forum: ["forum", "community", "discuss", "farmer", "talk"],
+    schemes: ["scheme", "government", "subsidy", "benefit", "support"],
+    "buy-inputs": ["buy", "purchase", "seed", "fertilizer", "input"],
+    history: ["history", "past", "previous", "record"],
+  };
 
-  // Enhanced mapping with sub-actions
-  const map: Array<{ keys: string[]; target: FeatureId; subAction?: string }> =
-    [
-      // Profile navigation
-      {
-        keys: [
-          "profile",
-          "my profile",
-          "account",
-          "settings",
-          "പ്രൊഫൈൽ",
-          "പ്രോഫൈൽ",
-          "എന്റെ പ്രൊഫൈൽ",
-          "അക്കൗണ്ട്",
-          "സെറ്റിംഗ്സ്",
-          "प्रोफाइल",
-          "मेरा प्रोफाइल",
-          "खाता",
-        ],
-        target: "profile",
-      },
-      // Twin with recommendations sub-action
-      {
-        keys: [
-          "recommendations",
-          "suggest",
-          "advice",
-          "crop recommendations",
-          "farming suggestions",
-          "which crop",
-          "cropwise",
-          "crop wise",
-          "ശുപാർശകൾ",
-          "നിർദ്ദേശങ്ങൾ",
-          "വിള ശുപാർശകൾ",
-          "കർഷിക നിർദ്ദേശങ്ങൾ",
-          "ഏത് വിള",
-          "सिफारिश",
-          "सुझाव",
-          "फसल की सिफारिश",
-        ],
-        target: "twin",
-        subAction: "recommendations",
-      },
-      // Twin main dashboard
-      {
-        keys: [
-          "twin",
-          "digital",
-          "ട്വിൻ",
-          "ഡിജിറ്റൽ",
-          "farming twin",
-          "കാർഷിക ട്വിൻ",
-        ],
-        target: "twin",
-        subAction: "twin",
-      },
-      // Weather with sub-actions
-      {
-        keys: [
-          "current weather",
-          "weather now",
-          "today weather",
-          "ഇന്നത്തെ കാലാവസ്ഥ",
-          "നിലവിലെ കാലാവസ്ഥ",
-          "अभी मौसम",
-          "आज का मौसम",
-        ],
-        target: "weather" as FeatureId,
-        subAction: "current",
-      },
-      {
-        keys: [
-          "weather forecast",
-          "tomorrow weather",
-          "weather prediction",
-          "കാലാവസ്ഥാ പ്രവചനം",
-          "നാളത്തെ കാലാവസ്ഥ",
-          "मौसम पूर्वानुमान",
-          "कल का मौसम",
-        ],
-        target: "weather" as FeatureId,
-        subAction: "forecast",
-      },
-      {
-        keys: [
-          "weather alert",
-          "storm alert",
-          "rain alert",
-          "കാലാവസ്ഥാ അലേർട്ട്",
-          "കൊടുങ്കാറ്റ് അലേർട്ട്",
-          "മഴ അലേർട്ട്",
-          "मौसम अलर्ट",
-          "तूफान अलर्ट",
-        ],
-        target: "weather" as FeatureId,
-        subAction: "alerts",
-      },
-      // General weather (defaults to current)
-      {
-        keys: [
-          "weather",
-          "rain",
-          "storm",
-          "കാലാവസ്ഥ",
-          "മഴ",
-          "കൊടുങ്കാറ്റ്",
-          "കാറ്റ്",
-          "मौसम",
-          "बारिश",
-          "तूफान",
-        ],
-        target: "weather" as FeatureId,
-        subAction: "current",
-      },
-      // Notifications/Alerts
-      {
-        keys: [
-          "alert",
-          "alerts",
-          "notification",
-          "notifications",
-          "warning",
-          "അലർട്ട്",
-          "അലർട്ടുകൾ",
-          "അറിയിപ്പ്",
-          "അറിയിപ്പുകൾ",
-          "മുന്നറിയിപ്പ്",
-          "मुन्नारियिप्पुकळ्",
-          "अलर्ट",
-          "सूचना",
-          "चेतावनी",
-        ],
-        target: "notifications",
-      },
-      // News
-      {
-        keys: [
-          "news",
-          "agriculture news",
-          "farming news",
-          "വാർത്ത",
-          "വാർത്തകൾ",
-          "ന്യൂസ്",
-          "കാർഷിക വാർത്തകൾ",
-          "समाचार",
-          "न्यूज़",
-          "कृषि समाचार",
-        ],
-        target: "news",
-      },
-      {
-        keys: [
-          "expense",
-          "spend",
-          "spent",
-          "cost",
-          "expenditure",
-          "money",
-          "how much",
-          "ചെലവ്",
-          "ചിലവ്",
-          "പണം",
-          "accounts",
-          "അക്കൗണ്ട്",
-          "ചെലവായത്",
-          "എത്ര ചിലവായി",
-        ],
-        target: "expense",
-      },
-      {
-        keys: [
-          "market",
-          "price",
-          "mandi",
-          "rate",
-          "വില",
-          "വിലകൾ",
-          "മണ്ഡി",
-          "വിപണി",
-        ],
-        target: "market",
-      },
-      {
-        keys: [
-          "weather",
-          "rain",
-          "storm",
-          "കാലാവസ്ഥ",
-          "മഴ",
-          "കൊടുങ്കാറ്റ്",
-          "കാറ്റ്",
-        ],
-        target: "weather",
-      },
-      {
-        keys: [
-          "diagnose",
-          "disease",
-          "doctor",
-          "രോഗ",
-          "identify",
-          "രോഗനിർണയം",
-          "ഡോക്ടർ",
-          "രോഗം",
-          // Natural problem descriptions
-          "something on",
-          "spots on",
-          "yellow leaves",
-          "sick",
-          "problem with",
-          "wrong with",
-          "leaf",
-          "leaves",
-          "plant",
-          "പുള്ളികൾ",
-          "മഞ്ഞ ഇലകൾ",
-          "രോഗിച്ച",
-          "പ്രശ്നം",
-          "ഇലകൾ",
-          "ചെടി",
-        ],
-        target: "diagnose",
-      },
-      {
-        keys: [
-          "scan",
-          "camera",
-          "pest",
-          "insect",
-          "സ്കാൻ",
-          "ക്യാമറ",
-          "കീടങ്ങൾ",
-          "പ്രാണി",
-        ],
-        target: "scan",
-      },
-      {
-        keys: [
-          "plan",
-          "calendar",
-          "sow",
-          "seeding",
-          "വിത്ത്",
-          "ആസൂത്രണം",
-          "കലണ്ടർ",
-          "വിത്തിടൽ",
-          "വിതയൽ",
-        ],
-        target: "planner",
-      },
-      {
-        keys: ["twin", "digital", "ട്വിൻ", "ഡിജിറ്റൽ"],
-        target: "twin",
-      },
-      {
-        keys: [
-          "forum",
-          "community",
-          "group",
-          "ഫോറം",
-          "കമ്യൂണിറ്റി",
-          "ഗ്രൂപ്പ്",
-          "ചർച്ച",
-        ],
-        target: "forum",
-      },
-      {
-        keys: [
-          "knowledge",
-          "guide",
-          "how to",
-          "help",
-          "home remedies",
-          "natural solutions",
-          "soil testing",
-          "organic methods",
-          "diy solutions",
-          "വിജ്ഞാനം",
-          "ഗൈഡ്",
-          "എങ്ങനെ",
-          "സഹായം",
-          "വീട്ടിലെ പരിഹാരം",
-          "പ്രകൃതിദത്ത പരിഹാരം",
-          "മണ്ണ് പരിശോധന",
-          "ജൈവിക രീതികൾ",
-        ],
-        target: "knowledge",
-      },
-      {
-        keys: [
-          "resources",
-          "knowledge center",
-          "learning center",
-          "റിസോഴ്സുകൾ",
-          "വിജ്ഞാന കേന്ദ്രം",
-          "പഠന കേന്ദ്രം",
-        ],
-        target: "resources",
-      },
-      {
-        keys: [
-          "workers",
-          "labour",
-          "laborers",
-          "hire",
-          "employment",
-          "workforce",
-          "find workers",
-          "need workers",
-          "വർക്കർമാർ",
-          "തൊഴിലാളികൾ",
-          "വാടകയ്ക്ക്",
-          "തൊഴിൽ",
-          "ജോലിക്കാർ",
-          "വർക്കർമാരെ കണ്ടെത്തുക",
-        ],
-        target: "labourers",
-      },
-      {
-        keys: [
-          "fair farm",
-          "marketplace",
-          "sell crops",
-          "direct market",
-          "farmer market",
-          "sell direct",
-          "ഫെയർ ഫാം",
-          "മാർക്കറ്റ്പ്ലേസ്",
-          "വിള വിൽപന",
-          "നേരിട്ട് മാർക്കറ്റ്",
-          "കർഷക മാർക്കറ്റ്",
-          "നേരിട്ട് വിൽക്കുക",
-        ],
-        target: "fairfarm",
-      },
-      {
-        keys: [
-          "buy",
-          "shop",
-          "purchase",
-          "order",
-          "വാങ്ങുക",
-          "ഷോപ്പിംഗ്",
-          "ഓർഡർ",
-        ],
-        target: "buy",
-      },
-      {
-        keys: ["news", "update", "headline", "വാർത്തകൾ", "അപ്ഡേറ്റ്", "വാർത്ത"],
-        target: "news",
-      },
-      {
-        keys: [
-          "scheme",
-          "subsidy",
-          "yojana",
-          "സർക്കാർ",
-          "പദ്ധതി",
-          "സബ്സിഡി",
-          "യോജന",
-        ],
-        target: "schemes",
-      },
-      {
-        keys: ["alert", "notification", "അലാറം", "അറിയിപ്പ്"],
-        target: "notifications",
-      },
-      {
-        keys: [
-          "profile",
-          "account",
-          "settings",
-          "പ്രൊഫൈൽ",
-          "അക്കൗണ്ട്",
-          "സെറ്റിംഗുകൾ",
-        ],
-        target: "profile",
-      },
-      {
-        keys: ["home", "dashboard", "main", "ഹോം", "ഡാഷ്ബോർഡ്", "മുഖ്യം"],
-        target: "home",
-      },
-      {
-        keys: [
-          "assistant",
-          "chat",
-          "help",
-          "support",
-          "അസിസ്റ്റന്റ്",
-          "ചാറ്റ്",
-          "സഹായം",
-          "സപ്പോർട്ട്",
-          "सहायक",
-          "चैट",
-          "सहायता",
-        ],
-        target: "chatbot",
-      },
-    ];
+  // Malayalam keywords
+  const malayalamKeywords: Record<string, string[]> = {
+    home: ["ഹോം", "മുഖ്യം", "ആരംഭം", "പ്രധാന"],
+    twin: ["ട്വിൻ", "നിർദ്ദേശം", "ഉപദേശം", "വിള ഉപദേശം"],
+    diagnose: ["രോഗനിർണയം", "രോഗം", "പ്രശ്നം", "അസുഖം"],
+    planner: ["പ്ലാൻ", "ഷെഡ്യൂൾ", "കലണ്ടർ", "സമയം"],
+    knowledge: ["അറിവ്", "പഠനം", "വിവരം", "ഗൈഡ്"],
+    expense: ["ചെലവ്", "പണം", "ബജറ്റ്", "ട്രാക്ക്"],
+    weather: ["കാലാവസ്ഥ", "മഴ", "താപനില", "പ്രവചനം"],
+    "farmer-assistant": ["അസിസ്റ്റന്റ്", "സഹായം", "പിന്തുണ"],
+    chatbot: ["ചാറ്റ്", "സംസാരം", "സംഭാഷണം"],
+    alerts: ["അലേർട്ട്", "അറിയിപ്പ്", "മുന്നറിയിപ്പ്"],
+    news: ["വാർത്ത", "അപ്ഡേറ്റ്", "വിവരം"],
+    forum: ["ഫോറം", "കമ്മ്യൂണിറ്റി", "ചർച്ച"],
+    schemes: ["സ്കീം", "ഗവൺമെന്റ്", "സബ്സിഡി"],
+    "buy-inputs": ["വാങ്ങുക", "വിത്ത്", "വളം"],
+    history: ["ചരിത്രം", "മുൻകാലം", "റെക്കോർഡ്"],
+  };
 
-  // Check for matches with sub-actions
-  for (const m of map) {
-    if (m.keys.some((k) => q.includes(k))) {
-      const result: VoiceDecision = {
-        action: m.target === "weather" ? "weather" : "navigate",
-        targetId: m.target === "weather" ? null : m.target,
-        subAction: m.subAction || undefined,
-        confidence: 0.6,
-        queryNormalized: q,
-      };
-      console.log(`✅ Keyword match found for "${queryRaw}":`, result);
-      return result;
+  const keywords =
+    language === "malayalam" ? malayalamKeywords : englishKeywords;
+
+  // Find best match
+  let bestMatch = "";
+  let bestScore = 0;
+
+  for (const [feature, featureKeywords] of Object.entries(keywords)) {
+    for (const keyword of featureKeywords) {
+      if (query.includes(keyword)) {
+        const score = keyword.length / query.length;
+        if (score > bestScore) {
+          bestScore = score;
+          bestMatch = feature;
+        }
+      }
     }
   }
 
-  const fallbackResult: VoiceDecision = {
-    action: "chat",
-    targetId: "chatbot",
-    confidence: 0.4,
-    queryNormalized: q,
+  return {
+    action: "navigate",
+    targetId: bestMatch || null,
+    confidence: bestScore > 0 ? Math.min(0.8, bestScore * 2) : 0.1,
+    reason: bestMatch ? `Keyword match: ${bestMatch}` : "No clear match found",
+    language,
+    queryNormalized: query,
   };
-  console.log(
-    `⚠️ No keyword match found for "${queryRaw}", defaulting to chat:`,
-    fallbackResult
-  );
-  return fallbackResult;
 }
 
+// Main routing function with LLM + keyword fallback
 export async function routeFromTranscript(
   transcript: string,
-  language?: string
+  language: string = "english"
 ): Promise<VoiceDecision> {
-  console.log(
-    `🎤 Voice routing request: "${transcript}" (language: ${language})`
-  );
+  console.log(`🎤 Voice routing: "${transcript}" (${language})`);
 
-  const prompt = buildPrompt(transcript, language);
-  console.log(
-    "📝 Built prompt for offline LLM (first 200 chars):",
-    prompt.substring(0, 200) + "..."
-  );
+  // Always try keyword matching first as it's fast and reliable
+  const keywordDecision = getKeywordBasedDecision(transcript, language);
 
-  // Primary: Try offline LLM for intelligent understanding
-  const ai = await callOfflineLLM(prompt);
-  if (ai) {
-    console.log("✅ Offline LLM provided decision:", ai);
+  // If WebLLM is available and keyword confidence is low, try AI parsing
+  if (webLLMEngine && keywordDecision.confidence < 0.6) {
+    try {
+      console.log("🤖 Using WebLLM for intent parsing...");
+      const llmDecision = await callOfflineLLMForIntent(transcript, language);
 
-    // Enhanced handling for different action types
-    if (ai.action === "weather") {
-      // Weather action already correctly formatted
-      console.log("🌤️ Weather action processed:", ai);
-      return ai;
-    }
-
-    if (ai.action === "navigate" && ai.targetId === "weather") {
-      console.log("🌤️ Converting weather navigation to weather action");
-      return {
-        action: "weather",
-        targetId: null,
-        subAction: ai.subAction || "current", // default to current weather
-        confidence: ai.confidence,
-        reason: ai.reason,
-        language: ai.language,
-        queryNormalized: ai.queryNormalized,
-      };
-    }
-
-    // Handle navigation with sub-actions
-    if (ai.action === "navigate" && ai.targetId && ai.subAction) {
-      console.log(
-        `🎯 Navigation with sub-action: ${ai.targetId} → ${ai.subAction}`
-      );
-      return ai;
-    }
-
-    // Validate targetId is in known features
-    if (
-      ai.action === "navigate" &&
-      ai.targetId &&
-      !KNOWN_FEATURE_IDS.includes(ai.targetId as any)
-    ) {
-      console.warn(
-        `⚠️ Unknown targetId: ${ai.targetId}, falling back to keyword match`
-      );
-      const off = offlineMatch(transcript, language);
-      return off;
-    }
-
-    // If AI says navigate but target is null, fallback
-    if (ai.action === "navigate" && !ai.targetId) {
-      console.log(
-        "⚠️ LLM said navigate but no targetId, using keyword fallback"
-      );
-      const off = offlineMatch(transcript, language);
-      console.log("🔄 Keyword fallback result:", off);
-
-      // Handle weather in keyword fallback too
-      if (off.action === "navigate" && off.targetId === "weather") {
+      // Use LLM result if it has higher confidence
+      if (llmDecision.confidence > keywordDecision.confidence) {
         console.log(
-          "🌤️ Converting keyword weather navigation to weather action"
+          `✅ WebLLM decision: ${llmDecision.targetId} (${(llmDecision.confidence * 100).toFixed(0)}%)`
         );
-        return {
-          action: "weather",
-          targetId: null,
-          subAction: "current",
-          confidence: off.confidence,
-          reason: off.reason,
-          language: off.language,
-          queryNormalized: off.queryNormalized,
-        };
+        return llmDecision;
       }
-
-      return off;
+    } catch (error) {
+      console.warn("⚠️ WebLLM failed, using keyword fallback:", error);
     }
-
-    return ai;
   }
 
-  console.log("❌ Offline LLM failed, using keyword fallback");
-  const offline = offlineMatch(transcript, language);
-  console.log("🔄 Keyword fallback result:", offline);
-
-  // Handle weather in keyword fallback
-  if (offline.action === "navigate" && offline.targetId === "weather") {
-    console.log("🌤️ Converting keyword weather navigation to weather action");
-    return {
-      action: "weather",
-      targetId: null,
-      subAction: "current",
-      confidence: offline.confidence,
-      reason: offline.reason,
-      language: offline.language,
-      queryNormalized: offline.queryNormalized,
-    };
-  }
-
-  return offline;
+  console.log(
+    `📝 Keyword decision: ${keywordDecision.targetId} (${(keywordDecision.confidence * 100).toFixed(0)}%)`
+  );
+  return keywordDecision;
 }

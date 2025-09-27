@@ -4,6 +4,7 @@ import {
   getOfflineLLMStatus,
   isOfflineLLMReady,
   routeFromTranscript,
+  clearModelCache,
 } from "../lib/voiceNavigation";
 
 interface AIVoiceButtonProps {
@@ -72,7 +73,7 @@ export const AIVoiceButton: React.FC<AIVoiceButtonProps> = ({
     initAI();
   }, [autoInitAttempted]);
 
-  const initializeAI = async () => {
+  const initializeAI = async (retryCount = 0) => {
     console.log("🚀 Initializing AI voice navigation...");
     showToastNotification("🤖 Loading AI model for smart voice navigation...");
 
@@ -96,7 +97,39 @@ export const AIVoiceButton: React.FC<AIVoiceButtonProps> = ({
       }
     } catch (error) {
       console.error("❌ AI initialization error:", error);
-      showToastNotification("⚠️ AI loading failed, using basic voice commands");
+
+      // If this is the first failure and it looks like a JSON parse error, try clearing cache
+      if (
+        retryCount === 0 &&
+        error instanceof Error &&
+        (error.message.includes("JSON.parse") ||
+          error.message.includes("unexpected character"))
+      ) {
+        console.log("🔄 Detected corrupted cache, clearing and retrying...");
+        showToastNotification("🔄 Clearing corrupted files, retrying...");
+
+        try {
+          await clearModelCache();
+          // Wait a bit before retrying
+          setTimeout(() => {
+            initializeAI(1); // Retry once
+          }, 2000);
+          return;
+        } catch (clearError) {
+          console.error("❌ Failed to clear cache:", clearError);
+        }
+      }
+
+      // Show appropriate error message
+      if (retryCount > 0) {
+        showToastNotification(
+          "⚠️ AI loading failed after retry - using keywords"
+        );
+      } else {
+        showToastNotification(
+          "⚠️ AI loading failed - using basic voice commands"
+        );
+      }
     }
   };
 

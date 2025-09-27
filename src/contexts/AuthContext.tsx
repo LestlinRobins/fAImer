@@ -1,16 +1,19 @@
+// src/contexts/AuthContext.tsx
+
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { User as FirebaseUser } from "firebase/auth";
 import {
-  auth,
-  signInWithGoogle as firebaseSignInWithGoogle,
-  logout as firebaseLogout,
-} from "@/lib/firebase";
-import { onAuthStateChanged } from "firebase/auth";
+  User as FirebaseUser,
+  onAuthStateChanged,
+  getRedirectResult, // Import for handling redirect
+  signInWithRedirect, // Import for starting redirect
+  GoogleAuthProvider, // Import the provider
+} from "firebase/auth";
+import { auth, logout as firebaseLogout } from "@/lib/firebase";
 
 interface AuthContextType {
   firebaseUser: FirebaseUser | null;
-  loading: boolean;
-  signInWithGoogleFirebase: () => Promise<FirebaseUser>;
+  loading: boolean; // This function's signature changes: it no longer returns a user
+  signInWithGoogleFirebase: () => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -31,42 +34,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    let mounted = true;
+    // Check for a redirect result when the component mounts
+    getRedirectResult(auth).catch((error) => {
+      console.error("🔥 Firebase redirect error:", error);
+    }); // Listen for Firebase auth changes (your existing logic)
 
-    // Listen for Firebase auth changes
-    const unsubscribeFirebase = onAuthStateChanged(auth, (firebaseUser) => {
-      if (!mounted) return;
-
-      console.log("🔥 Firebase auth state changed:", {
-        isLoggedIn: !!firebaseUser,
-        userEmail: firebaseUser?.email,
-        userName: firebaseUser?.displayName,
-        userUID: firebaseUser?.uid,
-      });
-
-      setFirebaseUser(firebaseUser);
+    const unsubscribeFirebase = onAuthStateChanged(auth, (user) => {
+      setFirebaseUser(user);
       setLoading(false);
     });
 
-    return () => {
-      mounted = false;
-      unsubscribeFirebase();
-    };
+    return () => unsubscribeFirebase();
   }, []);
 
   const value: AuthContextType = {
     firebaseUser,
-    loading,
+    loading, // This function now triggers the redirect away from your app
     signInWithGoogleFirebase: async () => {
-      const firebaseUser = await firebaseSignInWithGoogle();
-      return firebaseUser;
-    },
+      setLoading(true);
+      const provider = new GoogleAuthProvider();
+      await signInWithRedirect(auth, provider);
+    }, // Sign out logic
     signOut: async () => {
-      if (firebaseUser) {
-        await firebaseLogout();
-      }
-      setFirebaseUser(null);
+      await firebaseLogout();
     },
   };
+
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

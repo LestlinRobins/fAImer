@@ -39,6 +39,7 @@ import { Badge } from "@/components/ui/badge";
 import { useTranslation } from "@/contexts/TranslationContext";
 import { routeFromTranscript } from "@/lib/voiceNavigation";
 import { useAuth } from "@/contexts/AuthContext";
+import { AIVoiceButton } from "./AIVoiceButton";
 // Crop Wise icon now served from public uploads
 // Mapping icon now served from public uploads
 
@@ -966,6 +967,32 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
     }
   };
 
+  // Voice result handler for AIVoiceButton
+  const handleVoiceResult = async (transcript: string) => {
+    setIsProcessing(true);
+    toast({
+      title: getVoiceText("processing"),
+      description: `"${transcript}"`,
+    });
+    try {
+      // Enhanced voice routing with comprehensive sub-action support
+      const decision = await routeFromTranscript(transcript, currentLanguage);
+
+      console.log("🎯 Voice decision received:", decision);
+
+      // Use the enhanced navigation handler
+      await handleVoiceNavigation(decision);
+    } catch (error) {
+      console.error("Voice routing error:", error);
+      toast({
+        title: getVoiceText("error"),
+        description: getVoiceText("processingFailed"),
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   // Enhanced voice navigation handler with full sub-action support
   const handleVoiceNavigation = async (decision: any) => {
     console.log("🎯 Processing voice decision:", decision);
@@ -1250,31 +1277,15 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
         />
       </div>
 
-      {/* Voice Assistant Button */}
-      <Button
-        variant={listening || isProcessing ? "secondary" : "default"}
-        className="fixed top-4 right-4 z-20 h-14 w-14 rounded-full shadow-lg transition-colors duration-300"
-        onClick={handleMicClick}
-        aria-pressed={listening}
-        disabled={isProcessing}
-        title={
-          listening
-            ? currentLanguage === "ml"
-              ? "കേൾക്കുന്നു…"
-              : "Listening…"
-            : isProcessing
-              ? currentLanguage === "ml"
-                ? "പ്രോസസ്സിംഗ്..."
-                : "Processing..."
-              : currentLanguage === "ml"
-                ? "വോയ്സ് അസിസ്റ്റന്റ്"
-                : "Voice assistant"
-        }
-      >
-        <Mic
-          className={`h-6 w-6 ${listening ? "animate-pulse text-red-500" : isProcessing ? "animate-spin text-blue-500" : ""}`}
+      {/* Voice Assistant Button with AI Progress */}
+      <div className="fixed top-4 right-4 z-20">
+        <AIVoiceButton
+          currentLanguage={currentLanguage}
+          isListening={listening}
+          isNavigating={isProcessing}
+          onVoiceInput={handleMicClick}
         />
-      </Button>
+      </div>
 
       {/* Live Speech Display */}
       {(listening || interimText) && (
