@@ -32,7 +32,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { useTranslation } from "@/contexts/TranslationContext";
 
 interface CropPlannerScreenProps {
@@ -64,7 +63,7 @@ interface CropData {
 
 const CropPlannerScreen: React.FC<CropPlannerScreenProps> = ({ onBack }) => {
   const { currentLanguage } = useTranslation();
-  
+
   // Crop database with market data and agricultural info
   const cropDatabase: Record<string, CropData> = {
     Tomato: {
@@ -198,8 +197,10 @@ const CropPlannerScreen: React.FC<CropPlannerScreenProps> = ({ onBack }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<CropPlan | null>(null);
   const [isTodoModalOpen, setIsTodoModalOpen] = useState(false);
-  const [selectedCropForTodo, setSelectedCropForTodo] = useState<CropPlan | null>(null);
+  const [selectedCropForTodo, setSelectedCropForTodo] =
+    useState<CropPlan | null>(null);
   const [cropTodoList, setCropTodoList] = useState<any[]>([]);
+  const [todoLoadingMessage, setTodoLoadingMessage] = useState<string>("");
   const [formData, setFormData] = useState<{
     crop: string;
     area: string;
@@ -362,34 +363,64 @@ const CropPlannerScreen: React.FC<CropPlannerScreenProps> = ({ onBack }) => {
     }));
   };
 
-  const generateCropTodoList = async (crop: string, area: string) => {
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-
-    // Fallback todo lists for common crops
-    const fallbackTodos = {
+  const generateCropTodoList = (crop: string, area: string) => {
+    // Comprehensive hardcoded todo lists for different crops
+    const cropTodoLists = {
       tomato: [
         {
           day: 1,
           tasks: [
-            "Prepare soil with compost",
-            "Test soil pH (6.0-6.8)",
-            "Set up irrigation system",
+            "Prepare soil with compost and organic matter",
+            "Test soil pH (optimal 6.0-6.8) and adjust if needed",
+            "Set up drip irrigation system for efficient watering",
+            "Apply neem cake as natural pest deterrent",
           ],
         },
         {
           day: 2,
           tasks: [
-            "Plant tomato seedlings",
-            "Install support stakes",
-            "Apply base fertilizer",
+            "Plant tomato seedlings 18-24 inches apart",
+            "Install bamboo stakes or tomato cages for support",
+            "Apply balanced NPK fertilizer (10-10-10) around plants",
+            "Water gently at soil level to avoid leaf diseases",
           ],
         },
         {
           day: 3,
           tasks: [
-            "Water seedlings gently",
-            "Check for pest signs",
-            "Mulch around plants",
+            "Apply organic mulch around plants to retain moisture",
+            "Check for early signs of pests like aphids or whiteflies",
+            "Prune lower leaves touching the ground",
+            "Monitor soil moisture and water if top inch is dry",
+          ],
+        },
+      ],
+      chilli: [
+        {
+          day: 1,
+          tasks: [
+            "Prepare well-drained soil with organic compost",
+            "Ensure good air circulation for disease prevention",
+            "Set up raised beds for better drainage",
+            "Apply bone meal for phosphorus-rich soil",
+          ],
+        },
+        {
+          day: 2,
+          tasks: [
+            "Plant chilli seedlings with 12-15 inch spacing",
+            "Apply calcium-rich fertilizer to prevent blossom end rot",
+            "Install support stakes for heavy fruiting varieties",
+            "Water moderately - chillies prefer slightly dry conditions",
+          ],
+        },
+        {
+          day: 3,
+          tasks: [
+            "Apply light mulch to conserve moisture",
+            "Check for thrips and spider mites under leaves",
+            "Pinch off flower buds for first 2-3 weeks for stronger plants",
+            "Monitor for proper drainage after watering",
           ],
         },
       ],
@@ -397,21 +428,28 @@ const CropPlannerScreen: React.FC<CropPlannerScreenProps> = ({ onBack }) => {
         {
           day: 1,
           tasks: [
-            "Prepare paddy field",
-            "Level the field properly",
-            "Check water source",
+            "Prepare and level paddy field with proper bunding",
+            "Ensure water inlet and outlet channels are clear",
+            "Apply farmyard manure and incorporate into soil",
+            "Check water pH (optimal 6.0-7.0) and quality",
           ],
         },
         {
           day: 2,
-          tasks: ["Soak rice seeds", "Prepare seedbed", "Apply organic matter"],
+          tasks: [
+            "Soak rice seeds in water for 24 hours before sowing",
+            "Prepare nursery beds with fine, well-leveled soil",
+            "Broadcast pre-soaked seeds evenly in nursery",
+            "Maintain 2-3 cm water level in nursery beds",
+          ],
         },
         {
           day: 3,
           tasks: [
-            "Transplant seedlings",
-            "Maintain water level",
-            "Remove weeds",
+            "Transplant 20-25 day old seedlings to main field",
+            "Maintain continuous 3-5 cm water level",
+            "Apply urea fertilizer for initial nitrogen boost",
+            "Remove weeds manually to prevent competition",
           ],
         },
       ],
@@ -419,25 +457,28 @@ const CropPlannerScreen: React.FC<CropPlannerScreenProps> = ({ onBack }) => {
         {
           day: 1,
           tasks: [
-            "Till the soil deeply",
-            "Apply farmyard manure",
-            "Level the field",
+            "Deep till the soil to 20-25 cm depth",
+            "Apply well-decomposed farmyard manure",
+            "Level the field properly for uniform water distribution",
+            "Apply recommended dose of phosphorus fertilizer",
           ],
         },
         {
           day: 2,
           tasks: [
-            "Sow wheat seeds",
-            "Apply phosphorus fertilizer",
-            "Light irrigation",
+            "Sow wheat seeds using seed drill or broadcast method",
+            "Maintain proper seed rate (40-50 kg per acre)",
+            "Apply light irrigation immediately after sowing",
+            "Apply pre-emergence herbicide if needed",
           ],
         },
         {
           day: 3,
           tasks: [
-            "Check germination",
-            "Apply nitrogen fertilizer",
-            "Monitor for pests",
+            "Check for proper germination (7-10 days)",
+            "Apply first dose of nitrogen fertilizer at 3-4 leaf stage",
+            "Monitor for early pest problems like termites",
+            "Ensure proper moisture but avoid waterlogging",
           ],
         },
       ],
@@ -445,122 +486,157 @@ const CropPlannerScreen: React.FC<CropPlannerScreenProps> = ({ onBack }) => {
         {
           day: 1,
           tasks: [
-            "Prepare raised beds",
-            "Add organic compost",
-            "Check drainage system",
+            "Prepare raised beds with good drainage system",
+            "Add well-decomposed compost to improve soil structure",
+            "Ensure soil pH between 6.0-7.0 for optimal growth",
+            "Install drip irrigation for precise water management",
           ],
         },
         {
           day: 2,
           tasks: [
-            "Plant onion seedlings",
-            "Space plants properly",
-            "Apply base fertilizer",
+            "Plant onion seedlings or sets 4-6 inches apart",
+            "Plant with proper depth - bulb should be just below surface",
+            "Apply balanced fertilizer with emphasis on phosphorus",
+            "Water gently to settle soil around roots",
           ],
         },
         {
           day: 3,
-          tasks: ["Light watering", "Remove weeds", "Check for thrips"],
+          tasks: [
+            "Apply light irrigation to maintain consistent moisture",
+            "Remove competing weeds carefully by hand",
+            "Check for thrips damage on leaves",
+            "Apply organic mulch between rows to suppress weeds",
+          ],
+        },
+      ],
+      corn: [
+        {
+          day: 1,
+          tasks: [
+            "Prepare field with deep plowing and harrowing",
+            "Apply organic matter and balanced fertilizer",
+            "Create proper spacing between planting rows",
+            "Ensure good drainage to prevent waterlogging",
+          ],
+        },
+        {
+          day: 2,
+          tasks: [
+            "Plant corn seeds 1-2 inches deep with proper spacing",
+            "Apply starter fertilizer high in phosphorus",
+            "Water immediately after planting if soil is dry",
+            "Mark rows clearly for easy cultivation",
+          ],
+        },
+        {
+          day: 3,
+          tasks: [
+            "Monitor for germination (5-7 days in warm soil)",
+            "Check for cutworm and other early pest damage",
+            "Side-dress with nitrogen fertilizer if needed",
+            "Ensure adequate moisture for strong root development",
+          ],
+        },
+      ],
+      potato: [
+        {
+          day: 1,
+          tasks: [
+            "Prepare well-drained soil with organic compost",
+            "Create raised rows or ridges for better drainage",
+            "Ensure soil temperature is cool for planting",
+            "Apply balanced fertilizer before planting",
+          ],
+        },
+        {
+          day: 2,
+          tasks: [
+            "Plant seed potatoes with eyes facing up",
+            "Space tubers 8-10 inches apart in rows",
+            "Cover with 2-3 inches of loose soil",
+            "Water lightly to initiate sprouting",
+          ],
+        },
+        {
+          day: 3,
+          tasks: [
+            "Monitor soil moisture - keep consistently moist but not wet",
+            "Watch for early emergence of shoots",
+            "Begin hilling soil around plants as they grow",
+            "Check for early signs of pest problems",
+          ],
+        },
+      ],
+      carrot: [
+        {
+          day: 1,
+          tasks: [
+            "Prepare loose, well-drained soil free of stones",
+            "Add compost but avoid fresh manure",
+            "Create fine seedbed with smooth soil surface",
+            "Ensure proper pH between 6.0-6.8",
+          ],
+        },
+        {
+          day: 2,
+          tasks: [
+            "Sow carrot seeds thinly in shallow furrows",
+            "Cover seeds lightly with fine soil",
+            "Water gently with fine spray to avoid disturbing seeds",
+            "Mark planting areas clearly",
+          ],
+        },
+        {
+          day: 3,
+          tasks: [
+            "Keep soil consistently moist for germination",
+            "Watch for germination (10-14 days)",
+            "Thin seedlings when 2 inches tall",
+            "Remove weeds carefully to avoid root damage",
+          ],
         },
       ],
       default: [
         {
           day: 1,
           tasks: [
-            "Prepare soil thoroughly",
-            "Test soil conditions",
-            "Plan irrigation",
+            "Prepare soil thoroughly with organic matter",
+            "Test soil pH and nutrient levels",
+            "Plan efficient irrigation and drainage system",
+            "Apply appropriate base fertilizer for crop type",
           ],
         },
         {
           day: 2,
           tasks: [
-            "Plant/sow seeds",
-            "Apply base fertilizer",
-            "Set up support if needed",
+            "Plant seeds or seedlings with proper spacing",
+            "Apply mulch if beneficial for the crop",
+            "Set up plant support systems if needed",
+            "Water appropriately based on crop requirements",
           ],
         },
         {
           day: 3,
           tasks: [
-            "Water appropriately",
-            "Monitor growth",
-            "Check for pests/diseases",
+            "Monitor for proper germination or establishment",
+            "Check for early pest and disease symptoms",
+            "Adjust watering schedule based on weather",
+            "Remove weeds that compete with crop plants",
           ],
         },
       ],
     };
 
-    if (!apiKey) {
-      console.error("Gemini API key not found, using fallback todos");
-      const cropKey = crop.toLowerCase() as keyof typeof fallbackTodos;
-      return fallbackTodos[cropKey] || fallbackTodos.default;
-    }
+    // Get crop-specific todos
+    const cropKey = crop.toLowerCase() as keyof typeof cropTodoLists;
+    const selectedTodos = cropTodoLists[cropKey] || cropTodoLists.default;
 
-    try {
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
+    console.log(`Generated todo list for ${crop} on ${area}`);
+    setTodoLoadingMessage(`Farming plan loaded for ${crop}`);
 
-      const prompt = `Generate a 3-day farming todo list for growing ${crop} on ${area} of land. 
-      Return ONLY a valid JSON array with this exact format:
-      [{"day": 1, "tasks": ["task1", "task2", "task3"]}, {"day": 2, "tasks": ["task4", "task5", "task6"]}, {"day": 3, "tasks": ["task7", "task8", "task9"]}]
-      
-      Requirements:
-      - Each day should have 2-4 specific, actionable farming tasks
-      - Focus on practical activities: soil prep, seeding, watering, fertilizing, pest control
-      - Tasks should be specific to ${crop} cultivation
-      - Consider the land area: ${area}
-      - No extra text, just the JSON array`;
-
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      const text = response.text().trim();
-
-      // Clean up the response text
-      let cleanText = text;
-
-      // Remove markdown code blocks if present
-      cleanText = cleanText.replace(/```json\s*/g, "").replace(/```\s*/g, "");
-
-      // Remove any leading/trailing whitespace and newlines
-      cleanText = cleanText.trim();
-
-      // Find JSON array boundaries more precisely
-      const startIndex = cleanText.indexOf("[");
-      const lastIndex = cleanText.lastIndexOf("]");
-
-      if (startIndex !== -1 && lastIndex !== -1 && lastIndex > startIndex) {
-        const jsonString = cleanText.substring(startIndex, lastIndex + 1);
-
-        try {
-          const parsed = JSON.parse(jsonString);
-
-          // Validate the structure
-          if (Array.isArray(parsed) && parsed.length === 3) {
-            const isValid = parsed.every(
-              (day) =>
-                day.day && Array.isArray(day.tasks) && day.tasks.length > 0
-            );
-
-            if (isValid) {
-              return parsed;
-            }
-          }
-        } catch (parseError) {
-          console.error("JSON parse error:", parseError);
-        }
-      }
-
-      // If parsing fails, use fallback
-      console.warn("Failed to parse Gemini response, using fallback todos");
-      const cropKey = crop.toLowerCase() as keyof typeof fallbackTodos;
-      return fallbackTodos[cropKey] || fallbackTodos.default;
-    } catch (error) {
-      console.error("Error generating todo list:", error);
-      // Return fallback todos
-      const cropKey = crop.toLowerCase() as keyof typeof fallbackTodos;
-      return fallbackTodos[cropKey] || fallbackTodos.default;
-    }
+    return selectedTodos;
   };
 
   const handleSavePlan = async () => {
@@ -572,7 +648,8 @@ const CropPlannerScreen: React.FC<CropPlannerScreenProps> = ({ onBack }) => {
     // Generate todo list for new plans
     let todoList = null;
     if (!selectedPlan) {
-      todoList = await generateCropTodoList(formData.crop, formData.area);
+      setTodoLoadingMessage("Generating farming plan...");
+      todoList = generateCropTodoList(formData.crop, formData.area);
 
       // Save todo list to localStorage
       if (todoList) {
@@ -624,16 +701,18 @@ const CropPlannerScreen: React.FC<CropPlannerScreenProps> = ({ onBack }) => {
     }
   };
 
-  const handleViewTodoList = async (plan: CropPlan) => {
+  const handleViewTodoList = (plan: CropPlan) => {
     setSelectedCropForTodo(plan);
     setIsTodoModalOpen(true);
-    
+    setTodoLoadingMessage("Loading farming tasks...");
+
     // Generate todo list for the selected crop
     try {
-      const todoList = await generateCropTodoList(plan.crop, plan.area);
+      const todoList = generateCropTodoList(plan.crop, plan.area);
       setCropTodoList(todoList || []);
     } catch (error) {
       console.error("Error generating todo list:", error);
+      setTodoLoadingMessage("Error loading tasks, please try again");
       setCropTodoList([]);
     }
   };
@@ -876,12 +955,17 @@ const CropPlannerScreen: React.FC<CropPlannerScreenProps> = ({ onBack }) => {
       <Dialog open={isTodoModalOpen} onOpenChange={setIsTodoModalOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>
-              {selectedCropForTodo?.crop} Todo List
-            </DialogTitle>
+            <DialogTitle>{selectedCropForTodo?.crop} Todo List</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4 py-4 max-h-96 overflow-y-auto">
+            {todoLoadingMessage && (
+              <div className="text-center py-2">
+                <p className="text-sm text-blue-600 bg-blue-50 dark:bg-blue-900/20 dark:text-blue-400 p-2 rounded-lg">
+                  {todoLoadingMessage}
+                </p>
+              </div>
+            )}
             {cropTodoList.length > 0 ? (
               <div className="space-y-3">
                 {cropTodoList.map((dayTodo, dayIndex) => (
@@ -902,6 +986,12 @@ const CropPlannerScreen: React.FC<CropPlannerScreenProps> = ({ onBack }) => {
                     </div>
                   </div>
                 ))}
+              </div>
+            ) : todoLoadingMessage.includes("Loading") ? (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground">
+                  Loading farming tasks...
+                </p>
               </div>
             ) : (
               <div className="text-center py-8">
