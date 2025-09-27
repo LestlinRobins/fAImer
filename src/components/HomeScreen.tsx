@@ -25,6 +25,10 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
+  Bug,
+  Sprout,
+  CloudDrizzle,
+  Wrench,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -39,6 +43,8 @@ import { Badge } from "@/components/ui/badge";
 import { useTranslation } from "@/contexts/TranslationContext";
 import { routeFromTranscript } from "@/lib/voiceNavigation";
 import { useAuth } from "@/contexts/AuthContext";
+import { TrendingAnalyzer } from "@/lib/trendingAnalysis";
+import type { TrendingAlert } from "@/lib/trendingAnalysis";
 // Crop Wise icon now served from public uploads
 // Mapping icon now served from public uploads
 
@@ -699,8 +705,14 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
     },
   ];
 
-  // Announcements and alerts data
-  const announcements = [
+  // State for dynamic trending announcements
+  const [trendingAnnouncements, setTrendingAnnouncements] = useState<
+    TrendingAlert[]
+  >([]);
+  const [isLoadingTrending, setIsLoadingTrending] = useState(false);
+
+  // Static announcements (fallback)
+  const staticAnnouncements = [
     {
       id: "drought-alert",
       type: "Climate Alert",
@@ -753,44 +765,84 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
       borderColor: "border-orange-200 dark:border-orange-800",
       textColor: "text-orange-700 dark:text-orange-300",
     },
-    {
-      id: "weather-forecast",
-      type: "Weather Alert",
-      title: currentLanguage === "ml" ? "മഴ പ്രവചനം" : "Rainfall Forecast",
-      description:
-        currentLanguage === "ml"
-          ? "അടുത്ത 3 ദിവസത്തിൽ 50mm മഴ പ്രതീക്ഷിക്കുന്നു. വിളവെടുപ്പിന് തയ്യാറാകുക."
-          : "Moderate rainfall of 50mm expected in next 3 days. Prepare for harvesting.",
-      severity: "Low",
-      date: "3 hours ago",
-      icon: Droplets,
-      bgColor: "bg-green-50 dark:bg-green-950/20",
-      borderColor: "border-green-200 dark:border-green-800",
-      textColor: "text-green-700 dark:text-green-300",
-    },
-    {
-      id: "market-price",
-      type: "Market Update",
-      title: currentLanguage === "ml" ? "വില വർധന" : "Price Surge",
-      description:
-        currentLanguage === "ml"
-          ? "തക്കാളി വില ₹45/kg എത്തി. വിൽപന അവസരം പ്രയോജനപ്പെടുത്തുക."
-          : "Tomato prices reached ₹45/kg. Take advantage of selling opportunity.",
-      severity: "Low",
-      date: "5 hours ago",
-      icon: ShoppingCart,
-      bgColor: "bg-purple-50 dark:bg-purple-950/20",
-      borderColor: "border-purple-200 dark:border-purple-800",
-      textColor: "text-purple-700 dark:text-purple-300",
-    },
   ];
 
-  // Basic SEO for this screen
+  // Combined announcements (trending + static) with icon mapping
+  const announcements = [
+    ...trendingAnnouncements.map((alert) => ({
+      ...alert,
+      icon: getCategoryIcon(alert.icon as string), // Map string to actual icon
+    })),
+    ...staticAnnouncements,
+  ].slice(0, 8); // Limit to 8 total
+
+  // Map category strings to actual icon components
+  function getCategoryIcon(category: string) {
+    const iconMap: { [key: string]: any } = {
+      pests: Bug,
+      diseases: Sprout,
+      weather: CloudDrizzle,
+      market: DollarSign,
+      resources: Wrench,
+      default: AlertTriangle,
+    };
+    return iconMap[category] || iconMap.default;
+  }
+
+  // Load trending announcements from forum alerts
+  const loadTrendingAnnouncements = async () => {
+    setIsLoadingTrending(true);
+    try {
+      const trendingIssues = await TrendingAnalyzer.analyzeTrendingIssues();
+
+      // Convert top 3 trending issues to announcements
+      const newAnnouncements = trendingIssues
+        .slice(0, 3)
+        .map((issue) =>
+          TrendingAnalyzer.generateAnnouncementFromIssue(issue, currentLanguage)
+        );
+
+      setTrendingAnnouncements(newAnnouncements);
+
+      // Show notification if new critical issues are detected
+      if (newAnnouncements.some((a) => a.severity === "High")) {
+        toast({
+          title:
+            currentLanguage === "ml"
+              ? "പുതിയ മുന്നറിയിപ്പ്"
+              : "New Critical Alert",
+          description:
+            currentLanguage === "ml"
+              ? "കർഷക ഫോറത്തിൽ നിന്നും പുതിയ സുപ്രധാന മുന്നറിയിപ്പുകൾ കണ്ടെത്തി"
+              : "Critical issues detected from farmer forum discussions",
+        });
+      }
+    } catch (error) {
+      console.error("Error loading trending announcements:", error);
+    } finally {
+      setIsLoadingTrending(false);
+    }
+  };
   useEffect(() => {
     document.title =
       currentLanguage === "ml"
         ? "ഹോം | കാർഷിക ഡാഷ്ബോർഡ്"
         : "Home | Farm Dashboard";
+  }, [currentLanguage]);
+
+  // Load trending announcements when component mounts and language changes
+  useEffect(() => {
+    loadTrendingAnnouncements();
+
+    // Set up periodic refresh every 5 minutes for trending issues
+    const interval = setInterval(
+      () => {
+        loadTrendingAnnouncements();
+      },
+      5 * 60 * 1000
+    );
+
+    return () => clearInterval(interval);
   }, [currentLanguage]);
 
   // Voice recognition state
@@ -1154,22 +1206,33 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
 
   // Announcement carousel navigation functions
   const goToPreviousAnnouncement = () => {
+    if (announcements.length === 0) return;
     setCurrentAnnouncementIndex((prev) =>
       prev === 0 ? announcements.length - 1 : prev - 1
     );
   };
 
   const goToNextAnnouncement = () => {
+    if (announcements.length === 0) return;
     setCurrentAnnouncementIndex((prev) =>
       prev === announcements.length - 1 ? 0 : prev + 1
     );
   };
 
-  // Auto-advance carousel every 10 seconds
+  // Auto-advance carousel every 10 seconds (only if announcements exist)
   useEffect(() => {
+    if (announcements.length <= 1) return;
+
     const interval = setInterval(goToNextAnnouncement, 10000);
     return () => clearInterval(interval);
-  }, []);
+  }, [announcements.length]);
+
+  // Reset carousel index when announcements change
+  useEffect(() => {
+    if (currentAnnouncementIndex >= announcements.length) {
+      setCurrentAnnouncementIndex(0);
+    }
+  }, [announcements.length, currentAnnouncementIndex]);
 
   return (
     <div className="pb-20 bg-background min-h-screen transition-colors duration-300">
@@ -1292,91 +1355,150 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
       <div className="p-4 space-y-6">
         {/* Announcements & Alerts Carousel */}
         <div>
-          <h2 className="text-lg font-semibold text-foreground mb-4 transition-colors duration-300">
-            {currentLanguage === "ml"
-              ? "അറിയിപ്പുകളും മുന്നറിയിപ്പുകളും"
-              : "Announcements & Alerts"}
-          </h2>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-semibold text-foreground transition-colors duration-300">
+                {currentLanguage === "ml"
+                  ? "അറിയിപ്പുകളും മുന്നറിയിപ്പുകളും"
+                  : "Announcements & Alerts"}
+              </h2>
+              {trendingAnnouncements.length > 0 && (
+                <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">
+                  {currentLanguage === "ml"
+                    ? "കർഷക ഫോറത്തിൽ നിന്നുള്ള ട്രെൻഡിംഗ് പ്രശ്നങ്ങൾ"
+                    : "Trending issues from Farmer Forum"}
+                </p>
+              )}
+              {isLoadingTrending && (
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 animate-pulse">
+                  {currentLanguage === "ml"
+                    ? "ട്രെൻഡിംഗ് പ്രശ്നങ്ങൾ ലോഡ് ചെയ്യുന്നു..."
+                    : "Loading trending issues..."}
+                </p>
+              )}
+            </div>
+          </div>
 
           <div className="relative">
             {/* Current Announcement Card */}
-            <Card
-              className={`relative overflow-hidden transition-all duration-300 ${announcements[currentAnnouncementIndex].bgColor} ${announcements[currentAnnouncementIndex].borderColor}`}
-            >
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center space-x-2">
-                    <div
-                      className={`p-1.5 rounded-full ${announcements[currentAnnouncementIndex].bgColor}`}
-                    >
-                      {React.createElement(
-                        announcements[currentAnnouncementIndex].icon,
-                        {
-                          className: `w-4 h-4 ${announcements[currentAnnouncementIndex].textColor}`,
+            {announcements.length > 0 ? (
+              <Card
+                className={`relative overflow-hidden transition-all duration-300 ${announcements[currentAnnouncementIndex].bgColor} ${announcements[currentAnnouncementIndex].borderColor}`}
+              >
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center space-x-2">
+                      <div
+                        className={`p-1.5 rounded-full ${announcements[currentAnnouncementIndex].bgColor}`}
+                      >
+                        {React.createElement(
+                          announcements[currentAnnouncementIndex].icon,
+                          {
+                            className: `w-4 h-4 ${announcements[currentAnnouncementIndex].textColor}`,
+                          }
+                        )}
+                      </div>
+                      <Badge
+                        variant={
+                          announcements[currentAnnouncementIndex].severity ===
+                          "High"
+                            ? "destructive"
+                            : announcements[currentAnnouncementIndex]
+                                  .severity === "Medium"
+                              ? "default"
+                              : "secondary"
                         }
-                      )}
+                        className="text-xs"
+                      >
+                        {announcements[currentAnnouncementIndex].type}
+                      </Badge>
                     </div>
-                    <Badge
-                      variant={
-                        announcements[currentAnnouncementIndex].severity ===
-                        "High"
-                          ? "destructive"
-                          : announcements[currentAnnouncementIndex].severity ===
-                              "Medium"
-                            ? "default"
-                            : "secondary"
-                      }
-                      className="text-xs"
-                    >
-                      {announcements[currentAnnouncementIndex].type}
-                    </Badge>
+                    <span className="text-xs text-muted-foreground">
+                      {announcements[currentAnnouncementIndex].date}
+                    </span>
                   </div>
-                  <span className="text-xs text-muted-foreground">
-                    {announcements[currentAnnouncementIndex].date}
-                  </span>
-                </div>
 
-                <h3
-                  className={`font-semibold text-base mb-2 ${announcements[currentAnnouncementIndex].textColor}`}
-                >
-                  {announcements[currentAnnouncementIndex].title}
-                </h3>
+                  <h3
+                    className={`font-semibold text-base mb-2 ${announcements[currentAnnouncementIndex].textColor}`}
+                  >
+                    {announcements[currentAnnouncementIndex].title}
+                  </h3>
 
-                <p className="text-sm text-foreground/80 leading-relaxed">
-                  {announcements[currentAnnouncementIndex].description}
-                </p>
-              </CardContent>
+                  <p className="text-sm text-foreground/80 leading-relaxed">
+                    {announcements[currentAnnouncementIndex].description}
+                  </p>
 
-              {/* Navigation Arrows */}
-              <button
-                onClick={goToPreviousAnnouncement}
-                className="absolute left-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-white/40 hover:bg-white shadow-sm transition-all duration-200"
-              >
-                <ChevronLeft className="w-4 h-4 text-gray-600" />
-              </button>
+                  {/* Show trending info for forum-generated announcements */}
+                  {(announcements[currentAnnouncementIndex] as TrendingAlert)
+                    .alertCount && (
+                    <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
+                      <div className="flex items-center justify-between text-xs text-gray-600 dark:text-gray-400">
+                        <span>
+                          {currentLanguage === "ml"
+                            ? `${(announcements[currentAnnouncementIndex] as TrendingAlert).alertCount} റിപ്പോർട്ടുകൾ`
+                            : `${(announcements[currentAnnouncementIndex] as TrendingAlert).alertCount} reports`}
+                        </span>
+                        <span>
+                          {currentLanguage === "ml"
+                            ? `${(announcements[currentAnnouncementIndex] as TrendingAlert).locations?.length || 0} പ്രദേശങ്ങൾ`
+                            : `${(announcements[currentAnnouncementIndex] as TrendingAlert).locations?.length || 0} locations`}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
 
-              <button
-                onClick={goToNextAnnouncement}
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-white/80 hover:bg-white shadow-sm transition-all duration-200"
-              >
-                <ChevronRight className="w-4 h-4 text-gray-600" />
-              </button>
-            </Card>
+                {/* Navigation Arrows */}
+                {announcements.length > 1 && (
+                  <>
+                    <button
+                      onClick={goToPreviousAnnouncement}
+                      className="absolute left-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-white/40 hover:bg-white shadow-sm transition-all duration-200"
+                    >
+                      <ChevronLeft className="w-4 h-4 text-gray-600" />
+                    </button>
+
+                    <button
+                      onClick={goToNextAnnouncement}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-white/80 hover:bg-white shadow-sm transition-all duration-200"
+                    >
+                      <ChevronRight className="w-4 h-4 text-gray-600" />
+                    </button>
+                  </>
+                )}
+              </Card>
+            ) : (
+              <Card className="bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+                <CardContent className="p-4 text-center">
+                  <div className="animate-pulse">
+                    <div className="h-4 bg-gray-300 dark:bg-gray-600 rounded mb-2"></div>
+                    <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mx-auto"></div>
+                  </div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+                    {currentLanguage === "ml"
+                      ? "അറിയിപ്പുകൾ ലോഡ് ചെയ്യുന്നു..."
+                      : "Loading announcements..."}
+                  </p>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Carousel Indicators */}
-            <div className="flex justify-center space-x-2 mt-3">
-              {announcements.map((_, index) => (
-                <button
-                  key={index}
-                  onClick={() => setCurrentAnnouncementIndex(index)}
-                  className={`w-2 h-2 rounded-full transition-all duration-200 ${
-                    index === currentAnnouncementIndex
-                      ? "bg-primary w-6"
-                      : "bg-muted-foreground/30"
-                  }`}
-                />
-              ))}
-            </div>
+            {announcements.length > 1 && (
+              <div className="flex justify-center space-x-2 mt-3">
+                {announcements.map((_, index) => (
+                  <button
+                    key={index}
+                    onClick={() => setCurrentAnnouncementIndex(index)}
+                    className={`w-2 h-2 rounded-full transition-all duration-200 ${
+                      index === currentAnnouncementIndex
+                        ? "bg-primary w-6"
+                        : "bg-muted-foreground/30"
+                    }`}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
