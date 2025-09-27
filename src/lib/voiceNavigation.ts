@@ -28,7 +28,7 @@ async function loadWebLLMModule(): Promise<WebLLMModule> {
   return webLLMModulePromise;
 }
 
-const MODEL_PREFERENCE_ORDER = ["Llama-3.2-1B-Instruct-q4f32_1-MLC"];
+const MODEL_PREFERENCE_ORDER = ["Qwen2-0.5B-Instruct-q4f16_1-MLC"];
 
 const MODEL_LOAD_TIMEOUT_MS = 20000000;
 
