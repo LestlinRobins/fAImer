@@ -21,9 +21,10 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLanguageChange }) => {
 
   // Loading and error states
   const [loading, setLoading] = useState(false);
+  const [voiceLoading, setVoiceLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const { signInWithGoogleFirebase } = useAuth();
+  const { signInWithGoogleFirebase, signInWithMockUser } = useAuth();
 
   // Clear any URL parameters on component mount
   useEffect(() => {
@@ -66,13 +67,23 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLanguageChange }) => {
   };
 
   const handleVoiceLogin = () => {
-    // Simulate voice recognition - dummy function
-    console.log("Dummy voice login triggered");
+    console.log("Voice login triggered - logging in with mock user");
+    setVoiceLoading(true);
+    // Simulate voice processing delay
+    setTimeout(() => {
+      signInWithMockUser();
+      setVoiceLoading(false);
+    }, 1500); // 1.5 second delay to simulate voice processing
   };
 
   const handleBiometricLogin = () => {
-    // Simulate biometric authentication - dummy function
-    console.log("Dummy biometric login triggered");
+    console.log("Biometric login triggered - logging in with mock user");
+    setVoiceLoading(true);
+    // Simulate biometric processing delay
+    setTimeout(() => {
+      signInWithMockUser();
+      setVoiceLoading(false);
+    }, 1000); // 1 second delay to simulate biometric processing
   };
 
   return (
@@ -157,12 +168,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLanguageChange }) => {
 
                   {/* Google Authentication */}
                   <GoogleLogin
-                    onSuccess={() => {
-                      // Firebase auth state change will automatically handle navigation
-                    }}
-                    onError={(error) =>
-                      setError("Failed to sign in with Google")
-                    }
                     className="w-full border-red-300 dark:border-red-600 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950"
                     text="Continue with Google"
                     variant="outline"
@@ -216,21 +221,41 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLanguageChange }) => {
                     {/* Voice Recognition */}
                     <Button
                       onClick={handleVoiceLogin}
+                      disabled={voiceLoading}
                       variant="outline"
                       className="w-full border-orange-300 dark:border-orange-600 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-950"
                     >
-                      <Mic className="h-4 w-4 mr-2" />
-                      Voice Recognition
+                      {voiceLoading ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-2" />
+                          Processing Voice...
+                        </>
+                      ) : (
+                        <>
+                          <Mic className="h-4 w-4 mr-2" />
+                          Voice Recognition
+                        </>
+                      )}
                     </Button>
 
                     {/* Biometric Login */}
                     <Button
                       onClick={handleBiometricLogin}
+                      disabled={voiceLoading}
                       variant="outline"
                       className="w-full border-blue-300 dark:border-blue-600 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950"
                     >
-                      <Fingerprint className="h-4 w-4 mr-2" />
-                      Fingerprint Login
+                      {voiceLoading ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-2" />
+                          Processing Biometric...
+                        </>
+                      ) : (
+                        <>
+                          <Fingerprint className="h-4 w-4 mr-2" />
+                          Fingerprint Login
+                        </>
+                      )}
                     </Button>
                   </>
                 ) : (

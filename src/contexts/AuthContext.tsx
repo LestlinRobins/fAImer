@@ -14,6 +14,7 @@ interface AuthContextType {
   firebaseUser: FirebaseUser | null;
   loading: boolean; // This function's signature changes: it no longer returns a user
   signInWithGoogleFirebase: () => Promise<void>;
+  signInWithMockUser: () => void; // New mock login function for prototyping
   signOut: () => Promise<void>;
 }
 
@@ -54,9 +55,45 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       setLoading(true);
       const provider = new GoogleAuthProvider();
       await signInWithRedirect(auth, provider);
-    }, // Sign out logic
+    },
+    // Mock login function for prototyping
+    signInWithMockUser: () => {
+      const mockUser = {
+        uid: "mock-user-123",
+        email: "farmer@example.com",
+        displayName: "Mock Farmer",
+        photoURL: null,
+        emailVerified: true,
+        phoneNumber: null,
+        providerId: "mock",
+        tenantId: null,
+        metadata: {
+          creationTime: new Date().toISOString(),
+          lastSignInTime: new Date().toISOString(),
+        },
+        providerData: [],
+        refreshToken: "mock-refresh-token",
+        getIdToken: async () => "mock-id-token",
+        getIdTokenResult: async () => ({
+          token: "mock-id-token",
+          authTime: new Date().toISOString(),
+          issuedAtTime: new Date().toISOString(),
+          expirationTime: new Date(Date.now() + 3600000).toISOString(),
+          signInProvider: "mock",
+          signInSecondFactor: null,
+          claims: {},
+        }),
+        reload: async () => {},
+        toJSON: () => ({}),
+        delete: async () => {},
+      } as FirebaseUser;
+      setFirebaseUser(mockUser);
+      setLoading(false);
+    },
+    // Sign out logic
     signOut: async () => {
       await firebaseLogout();
+      setFirebaseUser(null); // Also clear mock user
     },
   };
 
