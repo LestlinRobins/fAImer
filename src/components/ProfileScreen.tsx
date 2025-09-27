@@ -25,7 +25,6 @@ import {
 import { useTheme } from "../contexts/ThemeContext";
 import { useTranslation } from "../contexts/TranslationContext";
 import { useAuth } from "../contexts/AuthContext";
-import UserProfile from "./UserProfile";
 
 interface ProfileScreenProps {
   onBack?: () => void;
@@ -212,14 +211,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack }) => {
             </div>
           </CardContent>
         </Card>
-
-        {/* Firebase User Profile (if logged in with Google) */}
-        {firebaseUser && (
-          <UserProfile
-            user={firebaseUser}
-            className="dark:bg-card dark:border-border shadow-sm dark:shadow-lg transition-all duration-300"
-          />
-        )}
 
         {/* Farm Information */}
         <Card className="dark:bg-card dark:border-border shadow-sm dark:shadow-lg transition-all duration-300">

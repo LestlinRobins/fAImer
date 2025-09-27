@@ -3,22 +3,16 @@ import { User } from "firebase/auth";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { LogOut, Mail, Shield } from "lucide-react";
+import { Mail, Shield } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface UserProfileProps {
   user?: User | null;
-  onSignOut?: () => void;
   className?: string;
 }
 
-const UserProfile: React.FC<UserProfileProps> = ({
-  user,
-  onSignOut,
-  className = "",
-}) => {
-  const { signOut, firebaseUser } = useAuth();
+const UserProfile: React.FC<UserProfileProps> = ({ user, className = "" }) => {
+  const { firebaseUser } = useAuth();
 
   // Use the provided user or fallback to the one from context
   const displayUser = user || firebaseUser;
@@ -26,17 +20,6 @@ const UserProfile: React.FC<UserProfileProps> = ({
   if (!displayUser) {
     return null;
   }
-
-  const handleSignOut = async () => {
-    try {
-      await signOut();
-      if (onSignOut) {
-        onSignOut();
-      }
-    } catch (error) {
-      console.error("Error signing out:", error);
-    }
-  };
 
   const getInitials = (name: string | null) => {
     if (!name) return "U";
@@ -108,11 +91,6 @@ const UserProfile: React.FC<UserProfileProps> = ({
             </div>
           )}
         </div>
-
-        <Button variant="outline" className="w-full" onClick={handleSignOut}>
-          <LogOut className="w-4 h-4 mr-2" />
-          Sign Out
-        </Button>
       </CardContent>
     </Card>
   );
