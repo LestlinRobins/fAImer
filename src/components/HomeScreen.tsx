@@ -1290,7 +1290,14 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
       )}
 
       <div className="p-4 space-y-6">
+<<<<<<< Updated upstream
         {/* Announcements & Alerts Carousel */}
+=======
+        {/* Crop Todo List */}
+        <CropTodoList language={currentLanguage} />
+
+        {/* Quick Actions */}
+>>>>>>> Stashed changes
         <div>
           <h2 className="text-lg font-semibold text-foreground mb-4 transition-colors duration-300">
             {currentLanguage === "ml"

@@ -1,6 +1,6 @@
-const CACHE_NAME = "vayalcare-v3";
-const ASSETS_CACHE = "vayalcare-assets-v3";
-const API_CACHE = "vayalcare-api-v3";
+const CACHE_NAME = "faimer-v3";
+const ASSETS_CACHE = "faimer-assets-v3";
+const API_CACHE = "faimer-api-v3";
 
 // Essential files for offline functionality
 const urlsToCache = ["/", "/manifest.json", "/favicon.ico", "/placeholder.svg"];
@@ -205,7 +205,7 @@ self.addEventListener("fetch", function (event) {
               <!DOCTYPE html>
               <html>
                 <head>
-                  <title>VayalCare - Offline</title>
+                  <title>fAImer - Offline</title>
                   <meta charset="utf-8">
                   <meta name="viewport" content="width=device-width, initial-scale=1">
                   <style>
@@ -214,7 +214,7 @@ self.addEventListener("fetch", function (event) {
                   </style>
                 </head>
                 <body>
-                  <h1>VayalCare</h1>
+                  <h1>fAImer</h1>
                   <p class="offline">You are currently offline. Please check your internet connection.</p>
                   <p>Cached content will be available when you return online.</p>
                 </body>
@@ -299,7 +299,7 @@ self.addEventListener("push", function (event) {
     console.log("Push notification received:", data);
 
     event.waitUntil(
-      self.registration.showNotification(data.title || "VayalCare", {
+      self.registration.showNotification(data.title || "fAImer", {
         body: data.body || "New update available",
         icon: "/lovable-uploads/852b0cb2-1c40-4d2d-9582-b65109704e1a.png",
         badge: "/lovable-uploads/852b0cb2-1c40-4d2d-9582-b65109704e1a.png",

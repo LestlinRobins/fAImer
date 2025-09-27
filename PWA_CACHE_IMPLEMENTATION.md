@@ -42,9 +42,9 @@
 
 ### Cache Layers
 
-1. **Essential Cache** (`vayalcare-v3`): Core app files
-2. **Assets Cache** (`vayalcare-assets-v3`): Images and media
-3. **API Cache** (`vayalcare-api-v3`): API responses
+1. **Essential Cache** (`faimer-v3`): Core app files
+2. **Assets Cache** (`faimer-assets-v3`): Images and media
+3. **API Cache** (`faimer-api-v3`): API responses
 
 ### Offline Experience
 
@@ -122,4 +122,4 @@ The app now automatically:
 - ✅ Provides user feedback for offline/online status
 - ✅ Handles network failures gracefully
 
-Your VayalCare PWA is now fully equipped for offline use! 🌱📱
+Your fAImer PWA is now fully equipped for offline use! 🌱📱

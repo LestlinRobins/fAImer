@@ -7,7 +7,7 @@
 1. Go to https://supabase.com and sign in/create account
 2. Click "New Project"
 3. Choose your organization
-4. Set project name: `vayalcare-auth`
+4. Set project name: `faimer-auth`
 5. Set database password (save this securely)
 6. Choose region (closest to your users)
 7. Click "Create new project"
@@ -40,7 +40,7 @@
 3. Enable Google+ API
 4. Go to **Credentials → Create Credentials → OAuth 2.0 Client IDs**
 5. Application type: **Web application**
-6. Name: `VayalCare Auth`
+6. Name: `fAImer Auth`
 7. Authorized redirect URIs: Add `https://YOUR_PROJECT_REF.supabase.co/auth/v1/callback`
    (Replace YOUR_PROJECT_REF with your actual project reference from Supabase URL)
 8. Copy **Client ID** and **Client Secret**
