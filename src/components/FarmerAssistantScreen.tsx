@@ -21,6 +21,7 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import { marked } from "marked";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { getAIResponse, getOnlineStatus } from "@/lib/unifiedAI";
 
 interface Message {
   id: string;
@@ -44,7 +45,18 @@ const FarmerAssistantScreen: React.FC<AssistantProps> = ({
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "1",
-      text: "Hello! I'm your AI farming assistant powered by Gemini. I can help you with crop management, pest control, weather advice, and general farming questions. How can I assist you today?",
+      text: (() => {
+        const isOfflineModelEnabled =
+          import.meta.env.VITE_ENABLE_OFFLINE_MODEL !== "false";
+        const baseMessage =
+          "Hello! I'm your AI farming assistant. I can help you with crop management, pest control, weather advice, and general farming questions.";
+
+        if (getOnlineStatus()) {
+          return `${baseMessage} Currently online with enhanced AI capabilities. ${isOfflineModelEnabled ? "Offline mode also available as backup." : ""}`;
+        } else {
+          return `${baseMessage} ${isOfflineModelEnabled ? "Currently offline with basic AI assistance." : "Currently offline - connect to internet for AI assistance."}`;
+        }
+      })(),
       sender: "assistant",
       timestamp: new Date(),
     },
@@ -488,61 +500,36 @@ const FarmerAssistantScreen: React.FC<AssistantProps> = ({
     setIsLoading(true);
 
     try {
-      const farmingPrompt = `You are a helpful farming assistant for Indian farmers. Provide practical, actionable advice on farming topics. Keep responses concise and well-structured. Respond in Malayalam language if the user selects Malayalam. User question: ${userMessage.text}`;
+      const languagePrompt =
+        language === "malayalam" ? "Respond in Malayalam language. " : "";
+      const farmingPrompt = `${languagePrompt}You are a helpful farming assistant for Indian farmers. Provide practical, actionable advice on farming topics. Keep responses concise and well-structured. User question: ${userMessage.text}`;
 
-      try {
-        const genAI = new GoogleGenerativeAI(apiKey);
-        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-        const result = await model.generateContent(farmingPrompt);
-        const response = await result.response;
-        const assistantResponse = response.text();
-        const assistantMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          text: assistantResponse,
-          sender: "assistant",
-          timestamp: new Date(),
-        };
-        setMessages((prev) => [...prev, assistantMessage]);
-      } catch (sdkError) {
-        console.log("SDK failed, trying direct API call...");
-        const response = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-latest:generateContent?key=${apiKey}`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              contents: [
-                {
-                  parts: [
-                    {
-                      text: farmingPrompt,
-                    },
-                  ],
-                },
-              ],
-            }),
-          }
-        );
+      const response = await getAIResponse(farmingPrompt, {
+        maxTokens: 300,
+        model: "gemini-2.5-flash",
+      });
 
-        if (!response.ok) {
-          throw new Error(
-            `API call failed: ${response.status} ${response.statusText}`
-          );
-        }
+      const assistantMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        text: response.text,
+        sender: "assistant",
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, assistantMessage]);
 
-        const data = await response.json();
-        const assistantResponse =
-          data.candidates?.[0]?.content?.parts?.[0]?.text ||
-          "Sorry, I could not generate a response.";
-        const assistantMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          text: assistantResponse,
-          sender: "assistant",
-          timestamp: new Date(),
-        };
-        setMessages((prev) => [...prev, assistantMessage]);
+      // Show connection status if using offline mode
+      if (response.source === "offline") {
+        const isOfflineModelEnabled =
+          import.meta.env.VITE_ENABLE_OFFLINE_MODEL !== "false";
+        toast({
+          title: isOfflineModelEnabled
+            ? "Offline AI Mode"
+            : "Basic Offline Mode",
+          description: isOfflineModelEnabled
+            ? "Response generated using local AI model. Connect to internet for enhanced features."
+            : "Using contextual farming advice. Enable offline model or connect to internet for AI responses.",
+          variant: "default",
+        });
       }
     } catch (error) {
       console.error("Gemini API Error:", error);

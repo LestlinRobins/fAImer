@@ -1,6 +1,7 @@
-const CACHE_NAME = "faimer-v3";
-const ASSETS_CACHE = "faimer-assets-v3";
-const API_CACHE = "faimer-api-v3";
+const CACHE_NAME = "faimer-v4";
+const ASSETS_CACHE = "faimer-assets-v4";
+const API_CACHE = "faimer-api-v4";
+const MODEL_CACHE = "faimer-models-v4";
 
 // Essential files for offline functionality
 const urlsToCache = ["/", "/manifest.json", "/favicon.ico", "/placeholder.svg"];
@@ -69,6 +70,11 @@ self.addEventListener("install", function (event) {
           );
         });
       }),
+      // Initialize model cache
+      caches.open(MODEL_CACHE).then(function (cache) {
+        console.log("Model cache initialized");
+        return Promise.resolve();
+      }),
     ]).catch(function (error) {
       console.log("Cache setup failed:", error);
     })
@@ -91,6 +97,43 @@ self.addEventListener("fetch", function (event) {
       url.searchParams.has("t") || // Vite HMR timestamp
       url.pathname.includes("hot"))
   ) {
+    return;
+  }
+
+  // Cache-first strategy for ML model files
+  if (
+    url.pathname.match(/\.(json|bin|wasm|onnx)$/) ||
+    url.hostname.includes("huggingface.co") ||
+    url.pathname.includes("/models/") ||
+    url.pathname.includes("Xenova")
+  ) {
+    event.respondWith(
+      caches.open(MODEL_CACHE).then(function (cache) {
+        return cache.match(request).then(function (response) {
+          if (response) {
+            console.log("Serving model file from cache:", url.pathname);
+            return response;
+          }
+          return fetch(request)
+            .then(function (networkResponse) {
+              if (networkResponse.status === 200) {
+                const responseClone = networkResponse.clone();
+                cache.put(request, responseClone);
+                console.log("Cached model file:", url.pathname);
+              }
+              return networkResponse;
+            })
+            .catch(function (error) {
+              console.log(
+                "Network fetch failed for model file:",
+                request.url,
+                error
+              );
+              throw error;
+            });
+        });
+      })
+    );
     return;
   }
 
@@ -238,7 +281,7 @@ self.addEventListener("fetch", function (event) {
 
 self.addEventListener("activate", function (event) {
   console.log("Service worker activating...");
-  const currentCaches = [CACHE_NAME, ASSETS_CACHE, API_CACHE];
+  const currentCaches = [CACHE_NAME, ASSETS_CACHE, API_CACHE, MODEL_CACHE];
 
   event.waitUntil(
     caches

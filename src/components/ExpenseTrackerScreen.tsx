@@ -40,6 +40,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
+import { getExpenseInsights } from "@/lib/unifiedAI";
 
 interface ExpenseTrackerScreenProps {
   onBack?: () => void;
@@ -223,12 +224,10 @@ const ExpenseTrackerScreen: React.FC<ExpenseTrackerScreenProps> = ({
     }
   };
 
-  // Get AI insights
+  // Get AI insights using unified AI system
   const getAIInsights = async () => {
     setLoadingInsight(true);
     try {
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-
       const expenseData = {
         total: totalExpenses,
         categories: categoryStats,
@@ -237,77 +236,13 @@ const ExpenseTrackerScreen: React.FC<ExpenseTrackerScreenProps> = ({
         viewMode,
       };
 
-      const prompt = `As an AI farming financial advisor, analyze the following farm expense data and provide insights:
-
-Total Expenses: ₹${totalExpenses}
-Categories: ${JSON.stringify(categoryStats)}
-Recent Expenses: ${JSON.stringify(expenses.slice(0, 5))}
-${viewMode === "weekly" ? "Weekly" : "Monthly"} Trend: ${JSON.stringify(chartData)}
-
-Please provide:
-1. A brief summary of spending patterns (max 20 words)
-2. Exactly 3 practical recommendations for better expense management (each max 15 words)
-3. Exactly 3 key trends observed in the data (each max 15 words)
-4. Specific budget advice for a farmer (max 20 words)
-
-Format the response as a JSON object with keys: summary, recommendations (array), trends (array), budgetAdvice (string).
-Keep each point concise and farmer-focused.`;
-
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            contents: [
-              {
-                parts: [
-                  {
-                    text: prompt,
-                  },
-                ],
-              },
-            ],
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`Gemini API error: ${response.status}`);
-      }
-
-      const data = await response.json();
-      const aiResponse = data.candidates[0]?.content?.parts[0]?.text;
-
-      if (aiResponse) {
-        try {
-          const cleanResponse = aiResponse
-            .replace(/```json\n?|\n?```/g, "")
-            .trim();
-          const insight = JSON.parse(cleanResponse);
-          setAiInsight(insight);
-        } catch (parseError) {
-          // Fallback insight
-          setAiInsight({
-            summary:
-              "Farm expenses show balanced mix of essential inputs with optimization opportunities.",
-            recommendations: [
-              "Consider bulk purchasing for frequently used farming items to reduce costs.",
-              "Track expenses by crop cycle for better seasonal planning and budgeting.",
-              "Explore cooperative buying with other farmers to get better wholesale prices.",
-            ],
-            trends: [
-              "Seeds and fertilizers represent your major expense categories this period.",
-              "Labor costs remain consistently important throughout different farming seasons.",
-              "Seasonal variations significantly affect your overall spending patterns and timing.",
-            ],
-            budgetAdvice:
-              "Maintain emergency fund equal to three months average expenses for unexpected needs.",
-          });
-        }
-      }
+      const insights = await getExpenseInsights(expenseData, viewMode);
+      setAiInsight({
+        summary: insights.summary,
+        recommendations: insights.recommendations,
+        trends: insights.trends,
+        budgetAdvice: insights.budgetAdvice,
+      });
     } catch (error) {
       console.error("Error getting AI insights:", error);
       // Fallback insight

@@ -9,10 +9,21 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import { AuthProvider } from "./contexts/AuthContext";
 import { OfflineIndicator } from "./components/OfflineIndicator";
 import { CachePreloader } from "./components/CachePreloader";
+import { initializeUnifiedAI } from "./lib/unifiedAI";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 
+// Import test utilities in development
+if (import.meta.env.MODE === "development") {
+  import("./utils/testOfflineAI");
+}
+
 const queryClient = new QueryClient();
+
+// Initialize the unified AI system on app start
+initializeUnifiedAI().catch((error) => {
+  console.warn("Failed to initialize unified AI:", error);
+});
 
 const App = () => (
   <ConvexProvider client={convex}>

@@ -8,12 +8,18 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8080,
+    proxy: {
+      // Proxy Hugging Face model requests to avoid interference
+      "/models": {
+        target: "https://huggingface.co",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/models/, ""),
+      },
+    },
   },
-  plugins: [
-    react(),
-    mode === 'development' &&
-    componentTagger(),
-  ].filter(Boolean),
+  plugins: [react(), mode === "development" && componentTagger()].filter(
+    Boolean
+  ),
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
@@ -24,7 +30,7 @@ export default defineConfig(({ mode }) => ({
       output: {
         assetFileNames: (assetInfo) => {
           if (!assetInfo.name) return `assets/[name]-[hash][extname]`;
-          const info = assetInfo.name.split('.');
+          const info = assetInfo.name.split(".");
           const ext = info[info.length - 1];
           if (/png|jpe?g|svg|gif|tiff|bmp|ico/i.test(ext)) {
             return `images/[name]-[hash][extname]`;
@@ -35,5 +41,5 @@ export default defineConfig(({ mode }) => ({
     },
     assetsInlineLimit: 0, // Disable inlining to ensure proper caching
   },
-  assetsInclude: ['**/*.webp', '**/*.avif'],
+  assetsInclude: ["**/*.webp", "**/*.avif"],
 }));

@@ -1040,60 +1040,24 @@ function validateAndSanitizeDecision(parsed: any): VoiceDecision | null {
 }
 
 async function callGemini(prompt: string): Promise<VoiceDecision | null> {
-  // Try both environment variable and fallback hardcoded key
-  const apiKey =
-    (import.meta as any).env?.VITE_GEMINI_API_KEY ||
-    "AIzaSyB7u7ECKuSiVP2wHzoi-Ic9haOi2U2dK6Q";
-  if (!apiKey) {
-    console.warn("🚨 No Gemini API key found");
-    return null;
-  }
-
-  console.log("🤖 Calling Gemini API for voice navigation...");
+  console.log("🤖 Calling unified AI for voice navigation...");
 
   try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-goog-api-key": apiKey,
-        },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-        }),
-      }
-    );
+    // Import here to avoid circular dependency
+    const { getVoiceNavigationResponse } = await import("./unifiedAI");
 
-    if (!res.ok) {
-      console.error(`❌ Gemini API error ${res.status}:`, await res.text());
-      throw new Error(`Gemini API error ${res.status}`);
-    }
+    // Extract the transcript from the prompt (simple extraction for now)
+    const transcriptMatch = prompt.match(/User voice command: "([^"]+)"/);
+    const transcript = transcriptMatch ? transcriptMatch[1] : prompt;
+    const languageMatch = prompt.match(/Language: (\w+)/);
+    const language = languageMatch ? languageMatch[1] : "en";
 
-    const data = await res.json();
-    const text: string = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
-    console.log("✅ Gemini raw response:", text);
+    const decision = await getVoiceNavigationResponse(transcript, language);
+    console.log("🚀 Unified AI voice decision:", decision);
 
-    const parsed = safeParseJson(text);
-    if (!parsed) {
-      console.warn("❌ Failed to parse Gemini JSON response:", text);
-      return null;
-    }
-
-    console.log("🎯 Gemini raw parsed response:", parsed);
-
-    // Validate and sanitize the decision
-    const decision = validateAndSanitizeDecision(parsed);
-    if (!decision) {
-      console.warn("❌ Failed to validate Gemini decision:", parsed);
-      return null;
-    }
-
-    console.log("🚀 Final validated Gemini decision:", decision);
-    return decision;
+    return validateAndSanitizeDecision(decision);
   } catch (err) {
-    console.warn("❌ Gemini call failed:", err);
+    console.warn("❌ Unified AI call failed:", err);
     return null;
   }
 }
