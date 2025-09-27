@@ -38,6 +38,10 @@ const CRITICAL_KEYWORDS = {
     "insect",
     "bug",
     "locust",
+    "locusts", // ✅ Added missing plural form
+    "locust attack", // ✅ Added specific phrase
+    "locusts attack", // ✅ Added your exact phrase
+    "swarm", // ✅ Added for locust swarms
     "caterpillar",
     "brown plant hopper",
     "whitefly",
@@ -117,17 +121,19 @@ const LOCATION_KEYWORDS = [
   "Regional",
 ];
 
-// Severity thresholds
+// Severity thresholds - Made more sensitive for real-world usage
 const SEVERITY_THRESHOLDS = {
-  HIGH: { minCount: 5, minScore: 20, minUrgency: "high" },
-  MEDIUM: { minCount: 3, minScore: 10, minUrgency: "medium" },
-  LOW: { minCount: 2, minScore: 5, minUrgency: "low" },
+  HIGH: { minCount: 3, minScore: 15, minUrgency: "high" }, // ✅ Lowered from 5 to 3
+  MEDIUM: { minCount: 2, minScore: 8, minUrgency: "medium" }, // ✅ Lowered thresholds
+  LOW: { minCount: 1, minScore: 3, minUrgency: "low" }, // ✅ More sensitive
 };
 
 export class TrendingAnalyzer {
   // Analyze alerts from farmer forum to find trending issues
   static async analyzeTrendingIssues(): Promise<TrendingIssue[]> {
     try {
+      console.log("🔍 Starting trending analysis...");
+
       // Get recent alerts (last 7 days)
       const weekAgo = new Date();
       weekAgo.setDate(weekAgo.getDate() - 7);
@@ -139,18 +145,26 @@ export class TrendingAnalyzer {
         .order("created_at", { ascending: false });
 
       if (error || !alerts) {
-        console.error("Error fetching alerts:", error);
+        console.error("❌ Error fetching alerts:", error);
         return [];
       }
+
+      console.log(`📊 Found ${alerts.length} recent alerts`);
+      console.log("📋 Alert data:", alerts);
 
       // Group and analyze issues
       const issueMap = new Map<string, TrendingIssue>();
 
       for (const alert of alerts) {
+        console.log(`\n🔎 Analyzing alert: "${alert.title}"`);
+        console.log(`Location: ${alert.location}, Urgency: ${alert.urgency}`);
+
         const issues = this.extractIssues(alert);
+        console.log(`🎯 Extracted issues:`, issues);
 
         for (const issue of issues) {
           const key = `${issue.keyword}-${issue.category}`;
+          console.log(`🔑 Issue key: ${key}`);
 
           if (issueMap.has(key)) {
             const existing = issueMap.get(key)!;
@@ -170,8 +184,12 @@ export class TrendingAnalyzer {
             if (this.isHigherSeverity(currentSeverity, existing.severity)) {
               existing.severity = currentSeverity;
             }
+
+            console.log(
+              `📈 Updated existing issue - Count: ${existing.count}, Locations: ${existing.locations.join(", ")}`
+            );
           } else {
-            issueMap.set(key, {
+            const newIssue = {
               keyword: issue.keyword,
               category: issue.category,
               count: 1,
@@ -184,25 +202,48 @@ export class TrendingAnalyzer {
               lastReported: alert.created_at,
               averageVotes: alert.likes - alert.dislikes,
               urgencyLevel: alert.urgency,
-            });
+            };
+            issueMap.set(key, newIssue);
+            console.log(`🆕 Created new issue:`, newIssue);
           }
         }
       }
+
+      console.log(`\n📊 Total unique issues found: ${issueMap.size}`);
 
       // Convert to array and sort by trending score
       const trendingIssues = Array.from(issueMap.values());
 
       // Calculate trend scores and filter significant issues
-      return trendingIssues
-        .map((issue) => ({
-          ...issue,
-          trendScore: this.calculateTrendScore(issue),
-        }))
+      const scoredIssues = trendingIssues
+        .map((issue) => {
+          const trendScore = this.calculateTrendScore(issue);
+          const issueWithScore = { ...issue, trendScore };
+          const isSignificant = this.isSignificantIssue(issue);
+
+          console.log(`\n📊 Issue: ${issue.keyword}`);
+          console.log(
+            `   Count: ${issue.count}, Locations: ${issue.locations.length}`
+          );
+          console.log(
+            `   Severity: ${issue.severity}, Trend Score: ${trendScore}`
+          );
+          console.log(
+            `   Is Significant: ${isSignificant ? "✅ YES" : "❌ NO"}`
+          );
+
+          return issueWithScore;
+        })
         .filter((issue) => this.isSignificantIssue(issue))
         .sort((a, b) => b.trendScore - a.trendScore)
         .slice(0, 10); // Top 10 trending issues
+
+      console.log(`\n🔥 Final trending issues: ${scoredIssues.length}`);
+      console.log("🎯 Top trending issues:", scoredIssues);
+
+      return scoredIssues;
     } catch (error) {
-      console.error("Error analyzing trending issues:", error);
+      console.error("❌ Error analyzing trending issues:", error);
       return [];
     }
   }
@@ -267,15 +308,26 @@ export class TrendingAnalyzer {
     const issues: Array<{ keyword: string; category: string }> = [];
     const searchText = `${alert.title} ${alert.description}`.toLowerCase();
 
+    console.log(`🔍 Searching in text: "${searchText}"`);
+
     // Check each category for keywords
     for (const [category, keywords] of Object.entries(CRITICAL_KEYWORDS)) {
       for (const keyword of keywords) {
         if (searchText.includes(keyword.toLowerCase())) {
+          console.log(
+            `✅ Found keyword "${keyword}" in category "${category}"`
+          );
           issues.push({ keyword, category });
+
+          // For locusts, also add a normalized version
+          if (keyword.includes("locust")) {
+            issues.push({ keyword: "locusts attack", category });
+          }
         }
       }
     }
 
+    console.log(`🎯 Total extracted issues: ${issues.length}`);
     return issues;
   }
 
